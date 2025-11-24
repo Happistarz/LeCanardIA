@@ -1,6 +1,7 @@
 #include "hlt/game.hpp"
 #include "hlt/constants.hpp"
 #include "hlt/log.hpp"
+#include "HaliteAI/Bot/bot_player.hpp"
 
 #include <random>
 #include <ctime>
@@ -27,7 +28,7 @@ int main(int argc, char* argv[]) {
     // At this point "game" variable is populated with initial map data.
     // This is a good place to do computationally expensive start-up pre-processing.
     // As soon as you call "ready" function below, the 2 second per turn timer will start.
-    game.ready("MyCppBot");
+    game.ready("LeCanardIA");
 
     LOG("Toto")
 
@@ -37,6 +38,8 @@ int main(int argc, char* argv[]) {
         unique_ptr<GameMap>& game_map = game.game_map;
 
         vector<Command> command_queue;
+
+        bot::BotPlayer bot_player(game);
 
         for (const auto& ship_iterator : me->ships) {
             shared_ptr<Ship> ship = ship_iterator.second;

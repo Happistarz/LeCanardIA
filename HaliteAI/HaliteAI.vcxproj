@@ -160,6 +160,7 @@
     <ClCompile Include="..\hlt\player.cpp" />
     <ClCompile Include="..\hlt\ship.cpp" />
     <ClCompile Include="..\MyBot.cpp" />
+    <ClCompile Include="Bot\bot_player.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\hlt\command.hpp" />
@@ -177,6 +178,7 @@
     <ClInclude Include="..\hlt\ship.hpp" />
     <ClInclude Include="..\hlt\shipyard.hpp" />
     <ClInclude Include="..\hlt\types.hpp" />
+    <ClInclude Include="Bot\bot_player.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

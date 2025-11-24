@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Bot">
+      <UniqueIdentifier>{A1B2C3D4-E5F6-4708-8910-111213141516}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\hlt\command.cpp">
@@ -41,6 +44,9 @@
     </ClCompile>
     <ClCompile Include="..\MyBot.cpp">
       <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Bot\bot_player.cpp">
+      <Filter>Bot</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -88,6 +94,9 @@
     </ClInclude>
     <ClInclude Include="..\hlt\types.hpp">
       <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="Bot\bot_player.hpp">
+      <Filter>Bot</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
