@@ -9,3 +9,8 @@ __pycache__/
 *.class
 *.ipr
 *.iws
+
+# Visual Studio
+*.vs/
+.vs/
+*/.vs/
