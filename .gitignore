@@ -24,3 +24,6 @@ HaliteAIRelease.exe
 HaliteAIRelease.pdb
 
 out/
+
+.idea/
+cmake-build-*/
