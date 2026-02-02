@@ -26,5 +26,6 @@
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerWorkingDirectory>$(SolutionDir)..\</LocalDebuggerWorkingDirectory>
     <LocalDebuggerCommand>halite.exe</LocalDebuggerCommand>
+    <LocalDebuggerCommandArgumentsHistory>--replay-directory replays/ -vvv --width 64 --height 64 "HaliteAIDebug.exe" "MyBot.exe" "MyBot.exe" "MyBot.exe"|</LocalDebuggerCommandArgumentsHistory>
   </PropertyGroup>
 </Project>
