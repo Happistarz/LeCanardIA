@@ -11,20 +11,13 @@ __pycache__/
 *.iws
 
 # Visual Studio
-*.vs/
-.vs/
-*/.vs/
+**/*.vs
 
-HaliteAI/Debug/
-HaliteAI/Release/
-HaliteAI/x64/
-HaliteAIDebug.exe
-HaliteAIDebug.pdb
-HaliteAIRelease.exe
-HaliteAIRelease.pdb
+HaliteAI/HaliteAI/
+HaliteAI*.exe
+HaliteAI*.pdb
 
 out/
 
 .idea/
 cmake-build-*/
-.vscode/
