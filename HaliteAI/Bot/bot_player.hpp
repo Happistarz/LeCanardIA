@@ -1,21 +1,19 @@
 #pragma once
 
-#include "hlt/types.hpp"
 #include "hlt/game.hpp"
-#include "hlt/command.hpp"
-#include "hlt/ship.hpp"
-#include "hlt/position.hpp"
-#include "hlt/direction.hpp"
-#include "hlt/constants.hpp"
-#include <vector>
-#include <memory>
+#include "hlt/command.hpp" // Important pour hlt::Command
+#include <vector>          // Important pour std::vector
 
 namespace bot {
+
     class BotPlayer {
+    public:
+
+        BotPlayer(hlt::Game& game_instance);
+
+        std::vector<hlt::Command> step();
+
     private:
         hlt::Game& game;
-
-    public:
-        BotPlayer(hlt::Game& game_instance);
     };
 }

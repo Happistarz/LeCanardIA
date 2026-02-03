@@ -13,6 +13,14 @@ namespace bot {
         ENDGAME     // Tours 400-500
     };
 
+    // Nécessaire pour utiliser Position dans les sets/maps
+    struct PositionComparator {
+        bool operator()(const hlt::Position& a, const hlt::Position& b) const {
+            if (a.y != b.y) return a.y < b.y;
+            return a.x < b.x;
+        }
+    };
+
     struct Blackboard {
 
         // Création du Singleton
@@ -26,14 +34,24 @@ namespace bot {
     private:
 
         // Constructeur privé
-        Blackboard() { }
+        Blackboard() : map_width(0), map_height(0), should_spawn(false) { }
 
     public:
 
-        std::set<hlt::Position> reserved_positions;             // Cases occupées en ce moment
-        std::map<hlt::Position, hlt::EntityId> targeted_cells;  // Cases "destination" d'un bateau
+        int map_width;                          // Largeur de la carte
+        int map_height;                         // Hauteur de la carte
 
-        std::set<hlt::Position> danger_zones;   // Cases de position dangereuse
+        // Initialisation des dimensions (à appeler au début)
+        void init(int width, int height) {
+            map_width = width;
+            map_height = height;
+        }
+
+        // Structures de données avec le comparateur
+        std::set<hlt::Position, PositionComparator> reserved_positions;             // Cases occupées en ce moment
+        std::map<hlt::Position, hlt::EntityId, PositionComparator> targeted_cells;  // Cases "destination" d'un bateau
+        std::set<hlt::Position, PositionComparator> danger_zones;                   // Cases de position dangereuse
+
         GamePhase current_phase;                // Phase actuelle
         int average_halite;                     // Halite moyen par case
         int total_ships_alive;                  // Nombre de bateaux
