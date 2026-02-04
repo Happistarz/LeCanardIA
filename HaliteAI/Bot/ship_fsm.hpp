@@ -25,11 +25,12 @@ namespace bot
         ShipState m_current_state;
         hlt::Position m_current_target;
 
-      public:
-        ShipFSM(hlt::EntityId ship_id);
+
+  public:
+    explicit ShipFSM(hlt::EntityId ship_id);
 
         hlt::Command update(std::shared_ptr<hlt::Ship> ship,
-                            hlt::GameMap& game_map, const hlt::Position& shipyard_position,
+                        hlt::GameMap &game_map, const hlt::Position &shipyard_position,
                             int turns_remaining);
 
     ShipState get_current_state() const;

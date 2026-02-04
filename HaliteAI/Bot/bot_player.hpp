@@ -10,12 +10,14 @@
 #include <vector>
 #include <memory>
 
-namespace bot {
-    class BotPlayer {
+namespace bot
+{
+    class BotPlayer
+    {
     private:
-        hlt::Game& game;
+        hlt::Game &game;
 
     public:
-        BotPlayer(hlt::Game& game_instance);
+        BotPlayer(hlt::Game &game_instance);
     };
-}
+} // namespace bot

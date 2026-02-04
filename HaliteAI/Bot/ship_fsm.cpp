@@ -3,9 +3,7 @@
 namespace bot
 {
     ShipFSM::ShipFSM(hlt::EntityId ship_id)
-        : m_ship_id(ship_id)
-        , m_current_state(ShipState::EXPLORE)
-        , m_current_target(hlt::Position{0, 0})
+        : m_ship_id(ship_id), m_current_state(ShipState::EXPLORE), m_current_target(hlt::Position{0, 0})
     {
     }
 
@@ -14,8 +12,10 @@ namespace bot
         return m_current_state;
     }
 
-    hlt::Command ShipFSM::update(std::shared_ptr<hlt::Ship> ship, hlt::GameMap& game_map,
-                                 const hlt::Position& shipyard_position, int turns_remaining)
+    hlt::Command ShipFSM::update(std::shared_ptr<hlt::Ship> ship, hlt::GameMap &game_map,
+                                 const hlt::Position &shipyard_position, int turns_remaining)
     {
+        hlt::Command command = ship->stay_still(); // Par défaut
+        return command;
     }
 } // namespace bot

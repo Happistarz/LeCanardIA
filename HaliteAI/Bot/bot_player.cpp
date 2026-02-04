@@ -3,8 +3,10 @@
 #include "hlt/constants.hpp"
 #include <algorithm>
 
-namespace bot {
-    
-    BotPlayer::BotPlayer(hlt::Game& game_instance) : game(game_instance) {
+namespace bot
+{
+
+    BotPlayer::BotPlayer(hlt::Game &game_instance) : game(game_instance)
+    {
     }
-}
+} // namespace bot
