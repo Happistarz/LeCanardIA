@@ -3,44 +3,36 @@
 #include "hlt/game.hpp"
 #include "hlt/constants.hpp"
 #include "hlt/log.hpp"
-
 #include <algorithm>
 #include <vector>
 #include <random>
 
 namespace bot {
 
-    BotPlayer::BotPlayer(hlt::Game& game_instance) : game(game_instance) {
-
-    }
+    BotPlayer::BotPlayer(hlt::Game& game_instance) : game(game_instance) { }
 
     std::vector<hlt::Command> BotPlayer::step() {
         std::vector<hlt::Command> command_queue;
-
-        // 1. Récupération du Cerveau Central (Blackboard)
         Blackboard& blackboard = Blackboard::get_instance();
 
-        // 2. Nettoyage des données du tour précédent
+        // 1. Nettoyage
         blackboard.clear_turn_data();
 
-        // -------------------------------------------------------------------------
-        // PARTIE 1 : MACRO
-        // Décision de créer un nouveau vaisseau
-        // -------------------------------------------------------------------------
+        // 2. ANALYSE MACRO
+        // On met à jour les infos stratégiques avant de prendre des décisions
+        blackboard.update_metrics(game);
+        blackboard.update_phase(game.turn_number, hlt::constants::MAX_TURNS);
 
-        // On spawn si : on est en début de partie (<= 200 tours), on a les sous, et la base est libre.
-        if (game.turn_number <= 200 &&
-            game.me->halite >= hlt::constants::SHIP_COST &&
-            !blackboard.is_position_reserved(game.me->shipyard->position))
-        {
+        // 3. LOGIQUE DE SPAWN INTELLIGENTE
+        if (blackboard.should_spawn(*game.me)) {
             command_queue.push_back(game.me->shipyard->spawn());
-
-            // On verrouille la base pour qu'aucun vaisseau ne vienne s'écraser sur le nouveau né
             blackboard.reserve_position(game.me->shipyard->position, -1);
+            // Petit log pour savoir pourquoi on spawn
+            hlt::log::log("Spawn! Moyenne Halite: " + std::to_string(blackboard.average_halite));
         }
 
         // -------------------------------------------------------------------------
-        // PARTIE 2 : MICRO (Temporaire pour test)
+        // PARTIE 2 : MICRO (Temporaire pour test) A CHANGER !
         // Déplacement des vaisseaux existants
         // -------------------------------------------------------------------------
 

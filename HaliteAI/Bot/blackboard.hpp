@@ -3,6 +3,7 @@
 #include <set>
 #include <map>
 #include "hlt/position.hpp"
+#include "hlt/game.hpp"
 
 namespace bot {
 
@@ -34,12 +35,19 @@ namespace bot {
     private:
 
         // Constructeur privé
-        Blackboard() : map_width(0), map_height(0), should_spawn(false) { }
+        Blackboard() : map_width(0), map_height(0), total_halite(0), average_halite(0), current_turn(0), max_turns(0) { }
 
     public:
 
         int map_width;                          // Largeur de la carte
         int map_height;                         // Hauteur de la carte
+
+        // Statistiques
+        long total_halite;      // Quantité totale d'argent sur la map
+        int average_halite;     // Richesse moyenne d'une case
+        int current_turn;
+        int max_turns;
+        GamePhase current_phase;
 
         // Initialisation des dimensions (à appeler au début)
         void init(int width, int height) {
@@ -52,12 +60,13 @@ namespace bot {
         std::map<hlt::Position, hlt::EntityId, PositionComparator> targeted_cells;  // Cases "destination" d'un bateau
         std::set<hlt::Position, PositionComparator> danger_zones;                   // Cases de position dangereuse
 
-        GamePhase current_phase;                // Phase actuelle
-        int average_halite;                     // Halite moyen par case
+        // Fonctions d'analyse
+        void update_metrics(hlt::Game& game);              // Scanne la carte
+        void update_phase(int turn, int total_turns);      // Met à jour la phase (Early/Mid/Late)
+        bool should_spawn(const hlt::Player& me);
         int total_ships_alive;                  // Nombre de bateaux
 
-        bool should_spawn;                      // Faut-il spawn ce tour ?
-
+        // Fonctions de base
         bool is_position_safe(const hlt::Position& pos) const;                      // Case safe ?
         bool is_position_reserved(const hlt::Position& pos) const;                  // Case occupée ?
         void reserve_position(const hlt::Position& pos, hlt::EntityId ship_id);     // Reserver une case

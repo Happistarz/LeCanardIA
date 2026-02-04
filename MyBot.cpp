@@ -9,12 +9,6 @@
 using namespace std;
 using namespace hlt;
 
-#ifdef _DEBUG
-# define LOG(X) log::log(X);
-#else
-# define LOG(X)
-#endif // DEBUG
-
 int main(int argc, char* argv[]) {
     unsigned int rng_seed;
     if (argc > 1) {
