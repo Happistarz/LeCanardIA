@@ -32,6 +32,7 @@ namespace bot
                             hlt::GameMap& game_map, const hlt::Position& shipyard_position,
                             int turns_remaining);
 
-        ShipState get_current_state() const;
-    };
+    ShipState get_current_state() const;
+    hlt::EntityId get_ship_id() const { return m_ship_id; }
+  };
 } // namespace bot
