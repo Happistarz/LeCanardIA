@@ -59,12 +59,15 @@ namespace bot {
         std::set<hlt::Position, PositionComparator> reserved_positions;             // Cases occupées en ce moment
         std::map<hlt::Position, hlt::EntityId, PositionComparator> targeted_cells;  // Cases "destination" d'un bateau
         std::set<hlt::Position, PositionComparator> danger_zones;                   // Cases de position dangereuse
+        hlt::Position best_cluster_position; // La destination idéale
 
         // Fonctions d'analyse
         void update_metrics(hlt::Game& game);              // Scanne la carte
         void update_phase(int turn, int total_turns);      // Met à jour la phase (Early/Mid/Late)
         bool should_spawn(const hlt::Player& me);
-        int total_ships_alive;                  // Nombre de bateaux
+        int total_ships_alive;                             // Nombre de bateaux
+
+        void update_best_cluster(hlt::Game& game);
 
         // Fonctions de base
         bool is_position_safe(const hlt::Position& pos) const;                      // Case safe ?

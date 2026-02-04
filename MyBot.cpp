@@ -2,12 +2,14 @@
 #include "hlt/constants.hpp"
 #include "HaliteAI/Bot/bot_player.hpp"
 #include "HaliteAI/Bot/blackboard.hpp"
+#include "hlt/log.hpp"
 
 #include <random>
 #include <ctime>
 
 using namespace std;
 using namespace hlt;
+
 
 int main(int argc, char* argv[]) {
     unsigned int rng_seed;
@@ -28,7 +30,7 @@ int main(int argc, char* argv[]) {
 
     game.ready("LeCanardIA");
 
-    LOG("Toto")
+    log::log("Bot successfully started!");
 
     for (;;) {
         game.update_frame();

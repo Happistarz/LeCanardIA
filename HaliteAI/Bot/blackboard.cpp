@@ -58,6 +58,31 @@ namespace bot {
         return true;
     }
 
+    void Blackboard::update_best_cluster(hlt::Game& game) {
+        long max_score = -1;
+        hlt::Position best_pos = {0, 0};
+
+        // On parcourt la carte
+        for (int y = 0; y < game.game_map->height; ++y) {
+            for (int x = 0; x < game.game_map->width; ++x) {
+
+                // On ne regarde pas juste la case, mais la case + ses voisines (somme locale)
+                long local_halite = 0;
+                local_halite += game.game_map->at({x, y})->halite;
+                local_halite += game.game_map->at({x, y+1})->halite;
+                local_halite += game.game_map->at({x+1, y})->halite;
+                local_halite += game.game_map->at({x-1, y})->halite;
+                local_halite += game.game_map->at({x, y-1})->halite;
+
+                if (local_halite > max_score) {
+                    max_score = local_halite;
+                    best_pos = {x, y};
+                }
+            }
+        }
+        this->best_cluster_position = best_pos;
+    }
+
     // Vérifie si une position est sûre pour s'y déplacer
     bool Blackboard::is_position_safe(const hlt::Position& pos) const {
         // 1. Est-ce que un de nos vaisseaux a déjà réservé cette case ce tour-ci ?
