@@ -7,6 +7,15 @@
 
 namespace bot {
 
+    // Liste des missions possibles
+    enum class MissionType {
+        MINING,         // Comportement par défaut (chercher des clusters)
+        RETURNING,      // Rempli, je rentre
+        CONSTRUCTING,   // Je vais construire un Dropoff
+        ATTACKING,      // Je fonce sur l'ennemi
+        DEFENDING       // Je protège ma base
+    };
+
     enum class GamePhase {
         EARLY,      // Tours 1-100
         MID,        // Tours 100-300
@@ -48,6 +57,15 @@ namespace bot {
         int current_turn;
         int max_turns;
         GamePhase current_phase;
+
+        std::map<hlt::EntityId, MissionType> ship_missions; // ID du vaisseau -> Sa mission actuelle
+        std::map<hlt::EntityId, hlt::Position> ship_targets; // ID du vaisseau -> Sa cible précise
+
+        // Fonction utilitaire pour donner un ordre
+        void assign_mission(hlt::EntityId id, MissionType mission, hlt::Position target = {0,0}) {
+            ship_missions[id] = mission;
+            ship_targets[id] = target;
+        }
 
         // Initialisation des dimensions (à appeler au début)
         void init(int width, int height) {
