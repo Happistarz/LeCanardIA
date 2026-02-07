@@ -4,99 +4,161 @@
 
 namespace bot
 {
-    ShipFSM::ShipFSM(hlt::EntityId ship_id)
-        : m_ship_id(ship_id), m_current_state(ShipState::EXPLORE), m_current_target(hlt::Position{0, 0})
+    float ShipFSM::transition_is_full(void *data)
     {
+        auto *ctx = static_cast<ShipFSMContext *>(data);
+        if (ctx->ship->halite >= hlt::constants::MAX_HALITE * HALITE_FILL_THRESHOLD)
+            return 1.0f;
+        return 0.0f;
     }
 
-    ShipState ShipFSM::get_current_state() const
+    float ShipFSM::transition_cell_has_halite(void *data)
     {
-        return m_current_state;
+        auto *ctx = static_cast<ShipFSMContext *>(data);
+        if (ctx->game_map->at(ctx->ship->position)->halite > hlt::constants::MAX_HALITE * HALITE_LOW_THRESHOLD)
+            return 0.5f;
+        return 0.0f;
+    }
+
+    float ShipFSM::transition_cell_empty(void *data)
+    {
+        auto *ctx = static_cast<ShipFSMContext *>(data);
+        if (ctx->game_map->at(ctx->ship->position)->halite < hlt::constants::MAX_HALITE * HALITE_LOW_THRESHOLD)
+            return 0.5f;
+        return 0.0f;
+    }
+
+    float ShipFSM::transition_at_shipyard(void *data)
+    {
+        auto *ctx = static_cast<ShipFSMContext *>(data);
+        if (ctx->ship->position == ctx->shipyard_position)
+            return 1.0f;
+        return 0.0f;
+    }
+
+    float ShipFSM::transition_urgent_return(void *data)
+    {
+        auto *ctx = static_cast<ShipFSMContext *>(data);
+        int dist = ctx->game_map->calculate_distance(ctx->ship->position, ctx->shipyard_position);
+        if (ctx->turns_remaining < dist + SAFE_RETURN_TURNS)
+            return 2.0f; // Prioritaire
+        return 0.0f;
+    }
+
+    float ShipFSM::transition_always(void *data)
+    {
+        return 1.0f;
+    }
+
+    void ShipFSM::behavior_explore(void *data)
+    {
+        auto *ctx = static_cast<ShipFSMContext *>(data);
+        ctx->result_command = ShipExploreState::execute(ctx->ship, *ctx->game_map, ctx->shipyard_position);
+    }
+
+    void ShipFSM::behavior_collect(void *data)
+    {
+        auto *ctx = static_cast<ShipFSMContext *>(data);
+        ctx->result_command = ShipCollectState::execute(ctx->ship, *ctx->game_map, ctx->shipyard_position);
+    }
+
+    void ShipFSM::behavior_return(void *data)
+    {
+        auto *ctx = static_cast<ShipFSMContext *>(data);
+        ctx->result_command = ShipReturnState::execute(ctx->ship, *ctx->game_map, ctx->shipyard_position);
+    }
+
+    void ShipFSM::behavior_urgent_return(void *data)
+    {
+        auto *ctx = static_cast<ShipFSMContext *>(data);
+        ctx->result_command = ShipUrgentReturnState::execute(ctx->ship, *ctx->game_map, ctx->shipyard_position);
+    }
+
+    ShipFSM::ShipFSM(hlt::EntityId ship_id)
+        : m_ship_id(ship_id), m_fsm(nullptr)
+    {
+        m_state_explore = new FSM_STATE(&ShipFSM::behavior_explore);
+        m_state_collect = new FSM_STATE(&ShipFSM::behavior_collect);
+        m_state_return = new FSM_STATE(&ShipFSM::behavior_return);
+        m_state_urgent_return = new FSM_STATE(&ShipFSM::behavior_urgent_return);
+        m_state_flee = new FSM_STATE(&ShipFSM::behavior_explore);
+
+        m_trans_explore_to_return = new FSM_TRANSITION(&ShipFSM::transition_is_full, m_state_return);
+        m_trans_explore_to_collect = new FSM_TRANSITION(&ShipFSM::transition_cell_has_halite, m_state_collect);
+        m_trans_explore_to_urgent = new FSM_TRANSITION(&ShipFSM::transition_urgent_return, m_state_urgent_return);
+
+        m_trans_collect_to_return = new FSM_TRANSITION(&ShipFSM::transition_is_full, m_state_return);
+        m_trans_collect_to_explore = new FSM_TRANSITION(&ShipFSM::transition_cell_empty, m_state_explore);
+        m_trans_collect_to_urgent = new FSM_TRANSITION(&ShipFSM::transition_urgent_return, m_state_urgent_return);
+
+        m_trans_return_to_explore = new FSM_TRANSITION(&ShipFSM::transition_at_shipyard, m_state_explore);
+        m_trans_return_to_urgent = new FSM_TRANSITION(&ShipFSM::transition_urgent_return, m_state_urgent_return);
+
+        m_trans_flee_to_explore = new FSM_TRANSITION(&ShipFSM::transition_always, m_state_explore);
+        m_trans_flee_to_urgent = new FSM_TRANSITION(&ShipFSM::transition_urgent_return, m_state_urgent_return);
+
+        m_state_explore->InitTransitions(3,
+                                         m_trans_explore_to_urgent,
+                                         m_trans_explore_to_return,
+                                         m_trans_explore_to_collect);
+
+        m_state_collect->InitTransitions(3,
+                                         m_trans_collect_to_urgent,
+                                         m_trans_collect_to_return,
+                                         m_trans_collect_to_explore);
+
+        m_state_return->InitTransitions(2,
+                                        m_trans_return_to_urgent,
+                                        m_trans_return_to_explore);
+
+        m_state_flee->InitTransitions(2,
+                                      m_trans_flee_to_urgent,
+                                      m_trans_flee_to_explore);
+
+        m_fsm = new FSM(5,
+                        m_state_explore,
+                        m_state_collect,
+                        m_state_return,
+                        m_state_urgent_return,
+                        m_state_flee);
+    }
+
+    ShipFSM::~ShipFSM()
+    {
+        delete m_fsm;
+
+        delete m_state_explore;
+        delete m_state_collect;
+        delete m_state_return;
+        delete m_state_urgent_return;
+        delete m_state_flee;
+
+        delete m_trans_explore_to_return;
+        delete m_trans_explore_to_collect;
+        delete m_trans_explore_to_urgent;
+        delete m_trans_collect_to_return;
+        delete m_trans_collect_to_explore;
+        delete m_trans_collect_to_urgent;
+        delete m_trans_return_to_explore;
+        delete m_trans_return_to_urgent;
+        delete m_trans_flee_to_explore;
+        delete m_trans_flee_to_urgent;
     }
 
     hlt::Command ShipFSM::update(std::shared_ptr<hlt::Ship> ship, hlt::GameMap &game_map,
                                  const hlt::Position &shipyard_position, int turns_remaining)
     {
-        // Urgent return check
-        int dist = game_map.calculate_distance(ship->position, shipyard_position);
-        if (turns_remaining < dist + SAFE_RETURN_TURNS && m_current_state != ShipState::URGENT_RETURN)
-        {
-            m_current_state = ShipState::URGENT_RETURN;
-        }
+        ShipFSMContext context;
+        context.ship = ship;
+        context.game_map = &game_map;
+        context.shipyard_position = shipyard_position;
+        context.turns_remaining = turns_remaining;
+        context.result_command = ship->stay_still(); // Par défaut
 
-        hlt::Command command = ship->stay_still(); // Par défaut
+        m_fsm->Evaluate(&context);
 
-        switch (m_current_state)
-        {
-        case ShipState::EXPLORE:
-            // Si plein, on rentre
-            if (ship->halite >= hlt::constants::MAX_HALITE * HALITE_FILL_THRESHOLD)
-            {
-                m_current_state = ShipState::RETURN;
-                command = ShipReturnState::execute(ship, game_map, shipyard_position);
-            }
-            // Si la case a du halite, on collecte
-            else if (game_map.at(ship->position)->halite > hlt::constants::MAX_HALITE * HALITE_LOW_THRESHOLD)
-            {
-                m_current_state = ShipState::COLLECT;
-                command = ShipCollectState::execute(ship, game_map, shipyard_position);
-            }
-            else
-            {
-                command = ShipExploreState::execute(ship, game_map, shipyard_position);
-            }
-            break;
+        m_fsm->Behave(&context);
 
-        case ShipState::COLLECT:
-            // Si plein, on rentre
-            if (ship->halite >= hlt::constants::MAX_HALITE * HALITE_FILL_THRESHOLD)
-            {
-                m_current_state = ShipState::RETURN;
-                command = ShipReturnState::execute(ship, game_map, shipyard_position);
-            }
-            // Si la case est vide, on explore
-            else if (game_map.at(ship->position)->halite < hlt::constants::MAX_HALITE * HALITE_LOW_THRESHOLD)
-            {
-                m_current_state = ShipState::EXPLORE;
-                command = ShipExploreState::execute(ship, game_map, shipyard_position);
-            }
-            else
-            {
-                command = ShipCollectState::execute(ship, game_map, shipyard_position);
-            }
-            break;
-
-        case ShipState::RETURN:
-            // Si on est arrivé au shipyard
-            if (ship->position == shipyard_position)
-            {
-                // On repart explorer
-                m_current_state = ShipState::EXPLORE;
-                command = ShipExploreState::execute(ship, game_map, shipyard_position);
-            }
-            else
-            {
-                command = ShipReturnState::execute(ship, game_map, shipyard_position);
-            }
-            break;
-
-        case ShipState::URGENT_RETURN:
-            // Si on est arrivé au shipyard
-            if (ship->position == shipyard_position)
-            {
-                // TODO: Sortir du depot de halite pour laisser la place aux autres
-                m_current_state = ShipState::URGENT_RETURN; // Rester en URGENT_RETURN pour l'instant
-            }
-            command = ShipUrgentReturnState::execute(ship, game_map, shipyard_position);
-            break;
-
-        case ShipState::FLEE:
-            // Fuir le danger puis retourner à l'exploration
-            m_current_state = ShipState::EXPLORE;
-            command = ShipExploreState::execute(ship, game_map, shipyard_position);
-            break;
-        }
-
-        return command;
+        return context.result_command;
     }
 } // namespace bot
