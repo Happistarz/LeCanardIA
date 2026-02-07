@@ -96,10 +96,72 @@ namespace bot {
                 blackboard.assign_mission(id, MissionType::DEFENDING, game.me->shipyard->position);
             }
 
-                // 4. EST-CE QU'IL DOIT ATTAQUER ? (ATTACKING)
-                // En late game, si on n'a rien de mieux à faire (pas plein), on attaque.
-            else if (blackboard.current_phase == GamePhase::LATE && enemy_base_found) {
-                blackboard.assign_mission(id, MissionType::ATTACKING, enemy_base_target);
+                // 4. LOGIQUE D'ESCOUADE (LOOTING + ATTACKING)
+                // Condition : On est en LATE, on a assez de vaisseaux (>15)
+                // et ce vaisseau n'a pas encore de mission importante.
+            else if (blackboard.current_phase == GamePhase::LATE && game.me->ships.size() > 15) {
+
+                // A. Si je suis déjà un LOOTER assigné
+                if (blackboard.ship_missions[id] == MissionType::LOOTING) {
+                    // Ma cible est la zone riche chez l'ennemi (calculée plus bas)
+                    blackboard.assign_mission(id, MissionType::LOOTING, blackboard.target_loot_zone);
+                }
+
+                    // B. Si je suis un GARDE DU CORPS assigné (ATTACKING lié à un looter)
+                else if (blackboard.squad_links.count(id)) {
+                    // Ma mission est d'attaquer, mais ma "target" est le vaisseau que je protège !
+                    // A gérer dans la micro : "Si ma cible est un ami, je le suis de près"
+                    hlt::EntityId protected_ship_id = blackboard.squad_links[id];
+
+                    // On vérifie si le copain du couple est toujours en vie
+                    if (game.me->ships.count(protected_ship_id)) {
+                        hlt::Position copain_pos = game.me->ships[protected_ship_id]->position;
+                        blackboard.assign_mission(id, MissionType::ATTACKING, copain_pos);
+                    } else {
+                        // Il est mort, je reviens car ça craint
+                        blackboard.squad_links.erase(id);
+                        blackboard.assign_mission(id, MissionType::RETURNING);
+                    }
+                }
+
+                    // C. Recrutement : Création d'une nouvelle escouade ?
+                    // On cherche un vaisseau "chômeur" (MINING) proche pour faire un binôme
+                else if (blackboard.ship_missions[id] == MissionType::MINING) {
+
+                    // On cherche une zone riche PROCHE D'UN ENNEMI
+                    // (Ici une logique simplifiée : on prend le meilleur cluster, s'il est loin de nous, c'est du loot)
+                    int dist_to_cluster = game.game_map->calculate_distance(game.me->shipyard->position, blackboard.best_cluster_position);
+
+                    if (dist_to_cluster > 20) { // C'est loin, c'est surement chez l'ennemi
+                        blackboard.target_loot_zone = blackboard.best_cluster_position;
+
+                        // JE DEVIENS LE VOLEUR
+                        blackboard.assign_mission(id, MissionType::LOOTING, blackboard.target_loot_zone);
+
+                        // JE CHERCHE UN GARDE DU CORPS
+                        // On cherche le vaisseau allié le plus proche qui est dispo
+                        hlt::EntityId best_buddy_id = -1;
+                        int min_dist = 999;
+
+                        for (auto& potential_buddy : game.me->ships) {
+                            if (potential_buddy.first == id) continue; // Pas moi-même
+                            // Il doit être dispo (Mining)
+                            if (blackboard.ship_missions[potential_buddy.first] != MissionType::MINING) continue;
+
+                            int d = game.game_map->calculate_distance(ship->position, potential_buddy.second->position);
+                            if (d < min_dist && d < 10) { // Il doit être pas trop loin (<10 cases)
+                                min_dist = d;
+                                best_buddy_id = potential_buddy.first;
+                            }
+                        }
+
+                        // Si on a trouvé un copain, on l'enrôle de force !
+                        if (best_buddy_id != -1) {
+                            blackboard.squad_links[best_buddy_id] = id; // Le copain me protège MOI
+                            blackboard.assign_mission(best_buddy_id, MissionType::ATTACKING, ship->position);
+                        }
+                    }
+                }
             }
 
                 // 5. PAR DÉFAUT : MINEUR (MINING)

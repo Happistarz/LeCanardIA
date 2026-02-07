@@ -13,7 +13,8 @@ namespace bot {
         RETURNING,      // Rempli, je rentre
         CONSTRUCTING,   // Je vais construire un Dropoff
         ATTACKING,      // Je fonce sur l'ennemi
-        DEFENDING       // Je protège ma base
+        DEFENDING,      // Je protège ma base
+        LOOTING         // Je ramasse les miettes
     };
 
     enum class GamePhase {
@@ -38,6 +39,13 @@ namespace bot {
             static Blackboard instance;
             return instance;
         }
+
+        // pour les escouades en couple : ID de Mr.Attaque -> ID de Mr.RamasseMiette
+        std::map<hlt::EntityId, hlt::EntityId> squad_links;
+
+        // variable pour stocker la "Zone de Chasse" (chez l'ennemi)
+        hlt::Position target_loot_zone = {0,0};
+
         Blackboard(Blackboard const&) = delete;
         Blackboard(Blackboard&&) = delete;
 
