@@ -47,4 +47,10 @@ cl.exe /FeMyBot.exe /std:c++14 /O2 /MT /EHsc /I . /Fo.\obj\ ^
  .\hlt\log.cpp ^
  .\hlt\player.cpp ^
  .\hlt\ship.cpp ^
+ .\HaliteAI\Bot\blackboard.cpp ^
+ .\HaliteAI\Bot\bot_player.cpp ^
+ .\HaliteAI\Bot\fsm.cpp ^
+ .\HaliteAI\Bot\ship_fsm.cpp ^
+ .\HaliteAI\Bot\ship_states.cpp ^
+ .\HaliteAI\Bot\traffic_manager.cpp ^
  .\MyBot.cpp ^

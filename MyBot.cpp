@@ -3,7 +3,6 @@
 #include "HaliteAI/Bot/bot_player.hpp"
 #include "HaliteAI/Bot/blackboard.hpp"
 #include "hlt/log.hpp"
-#include "HaliteAI/Bot/traffic_manager.hpp"
 
 
 int main(int argc, char *argv[])
@@ -18,7 +17,6 @@ int main(int argc, char *argv[])
 
     game.ready("LeCanardIA");
 
-    std::unordered_map<hlt::EntityId, std::unique_ptr<bot::ShipFSM>> ship_fsms;
     hlt::log::log("Bot successfully started!");
 
     for (;;)
@@ -32,9 +30,6 @@ int main(int argc, char *argv[])
             break;
         }
     }
-
-    // Cleanup
-    ship_fsms.clear();
 
     return 0;
 }

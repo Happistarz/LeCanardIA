@@ -111,10 +111,16 @@ namespace bot {
         targeted_cells[pos] = ship_id;
     }
 
+    // Vérifie si un vaisseau coincé occupe cette position
+    bool Blackboard::is_position_stuck(const hlt::Position& pos) const {
+        return stuck_positions.count(pos) > 0;
+    }
+
     // Nettoyage au début de chaque tour
     void Blackboard::clear_turn_data() {
         reserved_positions.clear();
         targeted_cells.clear();
         danger_zones.clear();
+        stuck_positions.clear();
     }
 }

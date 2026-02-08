@@ -44,8 +44,16 @@ namespace bot
         blackboard.update_metrics(game);
         blackboard.update_phase(game.turn_number, hlt::constants::MAX_TURNS);
         blackboard.update_best_cluster(game);
-        // Note: L'analyse de menace est faite localement dans assign_missions pour l'instant,
-        // mais pourrait être déplacée ici si on stockait 'under_threat' dans le Blackboard.
+
+        // Détection des vaisseaux coincés (pas assez de halite pour bouger)
+        for (const auto& ship_entry : game.me->ships) {
+            auto ship = ship_entry.second;
+            int cell_halite = game.game_map->at(ship->position)->halite;
+            int move_cost = cell_halite / hlt::constants::MOVE_COST_RATIO;
+            if (ship->halite < move_cost) {
+                blackboard.stuck_positions.insert(ship->position);
+            }
+        }
     }
 
     void BotPlayer::handle_spawn(std::vector<hlt::Command>& commands) {
@@ -170,45 +178,187 @@ namespace bot
 
     void BotPlayer::execute_missions(std::vector<hlt::Command>& commands) {
         Blackboard& blackboard = Blackboard::get_instance();
-        static std::mt19937 rng(game.turn_number + 12345);
+
+        // 1. Synchroniser les FSM (créer pour nouveaux vaisseaux, supprimer les morts)
+        sync_ship_fsms();
+
+        // 2. Préparer le contexte pour le TrafficManager
+        std::vector<hlt::Position> dropoff_positions = get_dropoff_positions();
+        int turns_remaining = hlt::constants::MAX_TURNS - game.turn_number;
+
+        TrafficManager::instance().init(*game.game_map, dropoff_positions,
+                                        game.me->ships, turns_remaining);
+
+        // 3. Collecter les MoveRequests de chaque vaisseau
+        std::vector<MoveRequest> all_requests;
 
         for (const auto& ship_iterator : game.me->ships) {
             auto ship = ship_iterator.second;
             MissionType mission = blackboard.ship_missions[ship->id];
 
-            // CONSTRUCTION
+            // CONSTRUCTING : commande directe, pas de MoveRequest
             if (mission == MissionType::CONSTRUCTING) {
                 commands.push_back(ship->make_dropoff());
                 game.me->halite -= params::DROPOFF_COST;
                 continue;
             }
 
-            // MICRO (TEMPORAIRE - A REMPLACER)
-            // FSM
+            hlt::Position nearest_dropoff = find_nearest_dropoff(ship);
+            MoveRequest request;
 
-            bool moved = false;
-            std::vector<hlt::Direction> directions(hlt::ALL_CARDINALS.begin(), hlt::ALL_CARDINALS.end());
-            std::shuffle(directions.begin(), directions.end(), rng);
-
-            for (const auto& direction : directions) {
-                hlt::Position target_pos = ship->position;
-                // Calcul manuel des coordonnées toriques
-                if (direction == hlt::Direction::NORTH) target_pos.y = (ship->position.y - 1 + game.game_map->height) % game.game_map->height;
-                if (direction == hlt::Direction::SOUTH) target_pos.y = (ship->position.y + 1) % game.game_map->height;
-                if (direction == hlt::Direction::EAST) target_pos.x = (ship->position.x + 1) % game.game_map->width;
-                if (direction == hlt::Direction::WEST) target_pos.x = (ship->position.x - 1 + game.game_map->width) % game.game_map->width;
-
-                if (blackboard.is_position_safe(target_pos)) {
-                    blackboard.reserve_position(target_pos, ship->id);
-                    commands.push_back(ship->move(direction));
-                    moved = true;
+            switch (mission) {
+                case MissionType::RETURNING: {
+                    // En ENDGAME, priorité urgente
+                    int priority = (blackboard.current_phase == GamePhase::ENDGAME)
+                        ? MoveRequest::URGENT_RETURN_PRIORITY
+                        : MoveRequest::RETURN_PRIORITY;
+                    request = make_navigate_request(ship, nearest_dropoff, priority);
                     break;
                 }
+
+                case MissionType::DEFENDING:
+                    request = make_navigate_request(ship, blackboard.ship_targets[ship->id],
+                                                    MoveRequest::FLEE_PRIORITY);
+                    break;
+
+                case MissionType::ATTACKING:
+                    request = make_navigate_request(ship, blackboard.ship_targets[ship->id],
+                                                    MoveRequest::EXPLORE_PRIORITY);
+                    break;
+
+                case MissionType::LOOTING:
+                    request = make_navigate_request(ship, blackboard.ship_targets[ship->id],
+                                                    MoveRequest::EXPLORE_PRIORITY);
+                    break;
+
+                case MissionType::MINING:
+                default:
+                    // MINING : la FSM gère le cycle explore → collect → return
+                    if (m_ship_fsms.count(ship->id)) {
+                        request = m_ship_fsms[ship->id]->update(
+                            ship, *game.game_map, nearest_dropoff, turns_remaining);
+                    } else {
+                        // Fallback si pas de FSM (ne devrait pas arriver)
+                        request = make_navigate_request(ship, blackboard.best_cluster_position,
+                                                        MoveRequest::EXPLORE_PRIORITY);
+                    }
+                    break;
             }
-            if (!moved) {
-                blackboard.reserve_position(ship->position, ship->id);
-                commands.push_back(ship->stay_still());
+
+            all_requests.push_back(request);
+        }
+
+        // 4. Résolution de conflits via TrafficManager
+        std::vector<MoveResult> results = TrafficManager::instance().resolve_all(all_requests);
+
+        // 5. Convertir les MoveResults en commandes
+        for (const auto& result : results) {
+            if (game.me->ships.count(result.m_ship_id)) {
+                auto ship = game.me->ships[result.m_ship_id];
+                if (result.m_final_direction == hlt::Direction::STILL) {
+                    commands.push_back(ship->stay_still());
+                } else {
+                    commands.push_back(ship->move(result.m_final_direction));
+                }
             }
         }
     }
+
+    // =========================================================
+    // HELPERS D'INTÉGRATION MACRO / MICRO
+    // =========================================================
+
+    void BotPlayer::sync_ship_fsms() {
+        // Supprimer les FSM des vaisseaux morts
+        for (auto it = m_ship_fsms.begin(); it != m_ship_fsms.end(); ) {
+            if (game.me->ships.find(it->first) == game.me->ships.end()) {
+                it = m_ship_fsms.erase(it);
+            } else {
+                ++it;
+            }
+        }
+
+        // Créer des FSM pour les nouveaux vaisseaux
+        for (const auto& ship_entry : game.me->ships) {
+            if (m_ship_fsms.find(ship_entry.first) == m_ship_fsms.end()) {
+                m_ship_fsms[ship_entry.first] = std::make_unique<ShipFSM>(ship_entry.first);
+            }
+        }
+    }
+
+    MoveRequest BotPlayer::make_navigate_request(std::shared_ptr<hlt::Ship> ship,
+                                                  const hlt::Position& target, int priority) {
+        const Blackboard& bb = Blackboard::get_instance();
+
+        // Déjà à destination → rester sur place
+        if (ship->position == target) {
+            std::vector<hlt::Direction> alternatives(hlt::ALL_CARDINALS.begin(), hlt::ALL_CARDINALS.end());
+            return MoveRequest{ship->id, ship->position, ship->position,
+                               hlt::Direction::STILL, priority, alternatives};
+        }
+
+        // Directions optimales vers la destination (unsafe = sans anti-collision)
+        std::vector<hlt::Direction> unsafe_moves = game.game_map->get_unsafe_moves(ship->position, target);
+
+        struct ScoredDir {
+            hlt::Direction dir;
+            int distance;
+            bool is_stuck;
+            bool is_optimal;
+        };
+
+        std::vector<ScoredDir> scored;
+        for (const auto& dir : hlt::ALL_CARDINALS) {
+            hlt::Position target_pos = game.game_map->normalize(ship->position.directional_offset(dir));
+            int dist = game.game_map->calculate_distance(target_pos, target);
+            bool stuck = bb.is_position_stuck(target_pos);
+            bool optimal = false;
+
+            for (const auto& um : unsafe_moves) {
+                if (um == dir) { optimal = true; break; }
+            }
+
+            scored.push_back({dir, dist, stuck, optimal});
+        }
+
+        // Tri : non-stuck > optimal > distance la plus courte
+        std::sort(scored.begin(), scored.end(),
+                  [](const ScoredDir& a, const ScoredDir& b) {
+                      if (a.is_stuck != b.is_stuck) return !a.is_stuck;
+                      if (a.is_optimal != b.is_optimal) return a.is_optimal;
+                      return a.distance < b.distance;
+                  });
+
+        hlt::Direction best_dir = scored[0].dir;
+        std::vector<hlt::Direction> alternatives;
+        for (size_t i = 1; i < scored.size(); ++i)
+            alternatives.push_back(scored[i].dir);
+
+        hlt::Position desired = game.game_map->normalize(ship->position.directional_offset(best_dir));
+        return MoveRequest{ship->id, ship->position, desired, best_dir, priority, alternatives};
+    }
+
+    std::vector<hlt::Position> BotPlayer::get_dropoff_positions() {
+        std::vector<hlt::Position> positions;
+        positions.push_back(game.me->shipyard->position);
+        for (const auto& dp : game.me->dropoffs) {
+            positions.push_back(dp.second->position);
+        }
+        return positions;
+    }
+
+    hlt::Position BotPlayer::find_nearest_dropoff(std::shared_ptr<hlt::Ship> ship) {
+        hlt::Position nearest = game.me->shipyard->position;
+        int min_dist = game.game_map->calculate_distance(ship->position, nearest);
+
+        for (const auto& dp : game.me->dropoffs) {
+            int d = game.game_map->calculate_distance(ship->position, dp.second->position);
+            if (d < min_dist) {
+                min_dist = d;
+                nearest = dp.second->position;
+            }
+        }
+        return nearest;
+    }
+
 } // namespace bot
