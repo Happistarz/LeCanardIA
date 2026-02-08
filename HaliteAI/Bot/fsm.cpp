@@ -63,15 +63,16 @@ void FSM_STATE::InitTransitions(size_t count, ...)
 {
     if (m_transitions_count) // already initialized
         return;
+
     m_transitions_count = count;
-    va_list transitionsList;                              // create the variable arguments list
-    va_start(transitionsList, count);                     // init the variable arguments list
-    m_transitions = new FSM_TRANSITION *[m_transitions_count]; // initialize the array of transitions
+    va_list transitionsList;
+    va_start(transitionsList, count);
+    m_transitions = new FSM_TRANSITION *[m_transitions_count];
     for (size_t iTransition = 0; iTransition < m_transitions_count; ++iTransition)
     {
-        m_transitions[iTransition] = va_arg(transitionsList, FSM_TRANSITION *); // set each transition
+        m_transitions[iTransition] = va_arg(transitionsList, FSM_TRANSITION *);
     }
-    va_end(transitionsList); // close the variable arguments list
+    va_end(transitionsList);
 }
 
 FSM_STATE *FSM_STATE::Evaluate(void *data)
@@ -90,7 +91,7 @@ FSM_STATE *FSM_STATE::Evaluate(void *data)
     }
     if (bestTransition)
         return bestTransition->GetOutputState();
-    return this; // Default state is self
+    return this; // Pas de transition
 }
 
 FSM_STATE *FSM_STATE::Behave(void *data)
@@ -125,14 +126,14 @@ FSM::FSM(size_t count, ...)
 {
     m_states_count = count;
     m_current_state = 0;
-    va_list statesList;                    // create the variable arguments list
-    va_start(statesList, count);           // init the variable arguments list
-    m_states = new FSM_STATE *[m_states_count]; // initialize the array of transitions
+    va_list statesList;
+    va_start(statesList, count);
+    m_states = new FSM_STATE *[m_states_count];
     for (size_t iState = 0; iState < m_states_count; ++iState)
     {
-        m_states[iState] = va_arg(statesList, FSM_STATE *); // set each transition
+        m_states[iState] = va_arg(statesList, FSM_STATE *);
     }
-    va_end(statesList); // close the variable arguments list
+    va_end(statesList);
 };
 
 FSM_STATE *FSM::Evaluate(void *data)
@@ -144,11 +145,11 @@ FSM_STATE *FSM::Evaluate(void *data)
         m_current_state = m_states[0];
     }
     FSM_STATE *newCurrentState = m_current_state->Evaluate(data);
-    // If new state is different, reset the previous active state (important if it includes a sub FSM)
+
     if (m_current_state != newCurrentState)
         m_current_state->Reset();
     m_current_state = newCurrentState;
-    // It is possible to call Behave here directly
+
     return m_current_state;
 }
 
