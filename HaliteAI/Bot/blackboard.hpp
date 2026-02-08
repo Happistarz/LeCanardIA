@@ -37,10 +37,13 @@ namespace bot
         std::set<hlt::Position> reserved_positions;            // Cases occupées en ce moment
         std::map<hlt::Position, hlt::EntityId> targeted_cells; // Cases "destination" d'un bateau
 
-        std::set<hlt::Position> danger_zones; // Cases de position dangereuse
-        GamePhase current_phase;              // Phase actuelle
-        int average_halite;                   // Halite moyen par case
-        int total_ships_alive;                // Nombre de bateaux
+        std::set<hlt::Position> danger_zones;    // Cases de position dangereuse
+        std::set<hlt::Position> stuck_positions; // Cases occupées par des ships physiquement coincés
+
+        bool is_position_stuck(const hlt::Position &pos) const; // Case bloquée par un ship stuck ?
+        GamePhase current_phase;                                // Phase actuelle
+        int average_halite;                                     // Halite moyen par case
+        int total_ships_alive;                                  // Nombre de bateaux
 
         bool should_spawn; // Faut-il spawn ce tour ?
 
