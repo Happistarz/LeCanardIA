@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fsm.hpp"
+#include "traffic_manager.hpp"
 #include "hlt/command.hpp"
 #include "hlt/entity.hpp"
 #include "hlt/game_map.hpp"
@@ -17,7 +18,7 @@ namespace bot
     hlt::GameMap *game_map;
     hlt::Position shipyard_position;
     int turns_remaining;
-    hlt::Command result_command;
+    MoveRequest result_move_request;
   };
 
   class ShipFSM
@@ -72,7 +73,7 @@ namespace bot
     explicit ShipFSM(hlt::EntityId ship_id);
     ~ShipFSM();
 
-    hlt::Command update(std::shared_ptr<hlt::Ship> ship,
+    MoveRequest update(std::shared_ptr<hlt::Ship> ship,
                         hlt::GameMap &game_map, const hlt::Position &shipyard_position,
                         int turns_remaining);
 

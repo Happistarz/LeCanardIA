@@ -53,25 +53,25 @@ namespace bot
     void ShipFSM::behavior_explore(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
-        ctx->result_command = ShipExploreState::execute(ctx->ship, *ctx->game_map, ctx->shipyard_position);
+        ctx->result_move_request = ShipExploreState::execute(ctx->ship, *ctx->game_map, ctx->shipyard_position);
     }
 
     void ShipFSM::behavior_collect(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
-        ctx->result_command = ShipCollectState::execute(ctx->ship, *ctx->game_map, ctx->shipyard_position);
+        ctx->result_move_request = ShipCollectState::execute(ctx->ship, *ctx->game_map, ctx->shipyard_position);
     }
 
     void ShipFSM::behavior_return(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
-        ctx->result_command = ShipReturnState::execute(ctx->ship, *ctx->game_map, ctx->shipyard_position);
+        ctx->result_move_request = ShipReturnState::execute(ctx->ship, *ctx->game_map, ctx->shipyard_position);
     }
 
     void ShipFSM::behavior_urgent_return(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
-        ctx->result_command = ShipUrgentReturnState::execute(ctx->ship, *ctx->game_map, ctx->shipyard_position);
+        ctx->result_move_request = ShipUrgentReturnState::execute(ctx->ship, *ctx->game_map, ctx->shipyard_position);
     }
 
     ShipFSM::ShipFSM(hlt::EntityId ship_id)
@@ -111,6 +111,9 @@ namespace bot
                                         m_trans_return_to_urgent,
                                         m_trans_return_to_explore);
 
+        m_state_urgent_return->InitTransitions(1,
+                                               m_trans_return_to_explore);
+
         m_state_flee->InitTransitions(2,
                                       m_trans_flee_to_urgent,
                                       m_trans_flee_to_explore);
@@ -145,7 +148,7 @@ namespace bot
         delete m_trans_flee_to_urgent;
     }
 
-    hlt::Command ShipFSM::update(std::shared_ptr<hlt::Ship> ship, hlt::GameMap &game_map,
+    MoveRequest ShipFSM::update(std::shared_ptr<hlt::Ship> ship, hlt::GameMap &game_map,
                                  const hlt::Position &shipyard_position, int turns_remaining)
     {
         ShipFSMContext context;
@@ -153,12 +156,12 @@ namespace bot
         context.game_map = &game_map;
         context.shipyard_position = shipyard_position;
         context.turns_remaining = turns_remaining;
-        context.result_command = ship->stay_still(); // Par défaut
+        context.result_move_request = MoveRequest{};
 
         m_fsm->Evaluate(&context);
 
         m_fsm->Behave(&context);
 
-        return context.result_command;
+        return context.result_move_request;
     }
 } // namespace bot
