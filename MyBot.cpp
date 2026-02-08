@@ -3,28 +3,12 @@
 #include "HaliteAI/Bot/bot_player.hpp"
 #include "HaliteAI/Bot/blackboard.hpp"
 #include "hlt/log.hpp"
-
-#include <random>
-#include <ctime>
-
-using namespace std;
-using namespace hlt;
+#include "HaliteAI/Bot/traffic_manager.hpp"
 
 
 int main(int argc, char *argv[])
 {
-    unsigned int rng_seed;
-    if (argc > 1)
-    {
-        rng_seed = static_cast<unsigned int>(stoul(argv[1]));
-    }
-    else
-    {
-        rng_seed = static_cast<unsigned int>(time(nullptr));
-    }
-    mt19937 rng(rng_seed);
-
-    Game game;
+    hlt::Game game;
 
     // On initialise Blackboard
     bot::Blackboard::get_instance().init(game.game_map->width, game.game_map->height);
@@ -34,13 +18,14 @@ int main(int argc, char *argv[])
 
     game.ready("LeCanardIA");
 
-    log::log("Bot successfully started!");
+    std::unordered_map<hlt::EntityId, std::unique_ptr<bot::ShipFSM>> ship_fsms;
+    hlt::log::log("Bot successfully started!");
 
     for (;;)
     {
         game.update_frame();
 
-        vector<Command> command_queue = bot_player.step();
+        std::vector<hlt::Command> command_queue = bot_player.step();
 
         if (!game.end_turn(command_queue))
         {
@@ -49,10 +34,6 @@ int main(int argc, char *argv[])
     }
 
     // Cleanup
-    for (const bot::ShipFSM *fsm : ship_fsms)
-    {
-        delete fsm;
-    }
     ship_fsms.clear();
 
     return 0;

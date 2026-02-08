@@ -64,10 +64,10 @@ namespace bot
         hlt::Position enemy_base_target = {0,0};
 
         for (const auto& player : game.players) {
-            if (player.id == game.me->id) continue;
-            enemy_base_target = player.shipyard->position;
+            if (player->id == game.me->id) continue;
+            enemy_base_target = player->shipyard->position;
 
-            for (const auto& ship_entry : player.ships) {
+            for (const auto& ship_entry : player->ships) {
                 int dist = game.game_map->calculate_distance(ship_entry.second->position, game.me->shipyard->position);
                 if (dist < dist_nearest_enemy) dist_nearest_enemy = dist;
             }

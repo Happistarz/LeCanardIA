@@ -55,17 +55,23 @@ namespace bot {
         // Constructeur privé
         Blackboard() : map_width(0), map_height(0), total_halite(0), average_halite(0), current_turn(0), max_turns(0) { }
 
-    public:
+public:
 
-        int map_width;                          // Largeur de la carte
-        int map_height;                         // Hauteur de la carte
+    int map_width;                          // Largeur de la carte
+    int map_height;                         // Hauteur de la carte
 
-        // Statistiques
-        long total_halite;      // Quantité totale d'argent sur la map
-        int average_halite;     // Richesse moyenne d'une case
-        int current_turn;
-        int max_turns;
-        GamePhase current_phase;
+    std::set<hlt::Position> danger_zones;    // Cases de position dangereuse
+    std::set<hlt::Position> stuck_positions; // Cases occupées par des ships physiquement coincés
+
+    bool is_position_stuck(const hlt::Position &pos) const; // Case bloquée par un ship stuck ?
+
+    // Statistiques
+    long total_halite;      // Quantité totale d'argent sur la map
+    int average_halite;     // Richesse moyenne d'une case
+    int current_turn;
+    int max_turns;
+    GamePhase current_phase;
+    int total_ships_alive;  // Nombre de bateaux
 
         std::map<hlt::EntityId, MissionType> ship_missions; // ID du vaisseau -> Sa mission actuelle
         std::map<hlt::EntityId, hlt::Position> ship_targets; // ID du vaisseau -> Sa cible précise
