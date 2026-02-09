@@ -1,126 +1,126 @@
 #include "blackboard.hpp"
+#include "bot_parameters.hpp"
 #include "hlt/constants.hpp"
 
-namespace bot {
+namespace bot
+{
 
-    // 1. SCANNER : On calcule combien d'argent il reste sur toute la carte
-    void Blackboard::update_metrics(hlt::Game& game) {
-        long current_total_halite = 0;
-
-        for (int y = 0; y < game.game_map->height; ++y) {
-            for (int x = 0; x < game.game_map->width; ++x) {
-                current_total_halite += game.game_map->cells[y][x].halite;
-            }
-        }
-
-        this->total_halite = current_total_halite;
-        // Moyenne = Total / Nombre de cases
-        this->average_halite = current_total_halite / (game.game_map->width * game.game_map->height);
+    void Blackboard::init(int width, int height)
+    {
+        map_width = width;
+        map_height = height;
     }
 
-    // 2. PHASE : On détermine où on en est dans la partie
-    void Blackboard::update_phase(int turn, int total_turns) {
-        this->current_turn = turn;
-        this->max_turns = total_turns;
+    void Blackboard::assign_mission(hlt::EntityId id, MissionType mission, hlt::Position target)
+    {
+        ship_missions[id] = mission;
+        ship_targets[id] = target;
+    }
 
-        float progress = (float)turn / (float)total_turns;
+    // Metriques
 
-        if (progress > 0.90) {
-            current_phase = GamePhase::ENDGAME; // Reste 10% du temps : URGENCE
-        } else if (progress > 0.60) {
+    void Blackboard::update_metrics(hlt::Game &game)
+    {
+        long sum = 0;
+        for (int y = 0; y < game.game_map->height; ++y)
+            for (int x = 0; x < game.game_map->width; ++x)
+                sum += game.game_map->cells[y][x].halite;
+
+        total_halite = sum;
+        average_halite = static_cast<int>(sum / (game.game_map->width * game.game_map->height));
+    }
+
+    void Blackboard::update_phase(int turn, int total_turns)
+    {
+        current_turn = turn;
+        max_turns = total_turns;
+        float progress = static_cast<float>(turn) / static_cast<float>(total_turns);
+
+        if (progress > params::PHASE_ENDGAME)
+            current_phase = GamePhase::ENDGAME;
+        else if (progress > params::PHASE_LATE)
             current_phase = GamePhase::LATE;
-        } else if (progress > 0.30) {
+        else if (progress > params::PHASE_MID)
             current_phase = GamePhase::MID;
-        } else {
+        else
             current_phase = GamePhase::EARLY;
-        }
     }
 
-    // 3. DECISION : Est-ce qu'on achète un vaisseau ?
-    bool Blackboard::should_spawn(const hlt::Player& me) {
-        // Condition 1 : A-t-on les sous ?
-        if (me.halite < hlt::constants::SHIP_COST) return false;
+    // Decision de spawn
 
-        // Condition 2 : La base est-elle libre ? (Crucial !)
-        if (is_position_reserved(me.shipyard->position)) return false;
-
-        // Condition 3 : Si c'est la fin du jeu, on arrête de dépenser !
-        if (current_phase == GamePhase::ENDGAME || current_phase == GamePhase::LATE) {
+    bool Blackboard::should_spawn(const hlt::Player &me)
+    {
+        if (me.halite < hlt::constants::SHIP_COST)
             return false;
-        }
-
-        // Condition 4 : Est-ce qu'il reste assez à manger sur la carte ?
-        // Si la moyenne est trop basse, les nouveaux vaisseaux ne seront jamais rentables.
-        if (average_halite < 50) { // Seuil arbitraire, tu pourras le tuner
+        if (is_position_reserved(me.shipyard->position))
             return false;
-        }
-
+        if (current_phase == GamePhase::ENDGAME ||
+            current_phase == GamePhase::LATE)
+            return false;
+        if (average_halite < params::MIN_HALITE_TO_SPAWN)
+            return false;
         return true;
     }
 
-    void Blackboard::update_best_cluster(hlt::Game& game) {
+    // Analyse de cluster
+
+    void Blackboard::update_best_cluster(hlt::Game &game)
+    {
         long max_score = -1;
         hlt::Position best_pos = {0, 0};
-        int w = game.game_map->width;  // Raccourci
-        int h = game.game_map->height; // Raccourci
+        int w = game.game_map->width;
+        int h = game.game_map->height;
 
-        for (int y = 0; y < h; ++y) {
-            for (int x = 0; x < w; ++x) {
-                long local_halite = 0;
+        for (int y = 0; y < h; ++y)
+        {
+            for (int x = 0; x < w; ++x)
+            {
+                // Somme en croix (centre + 4 cardinaux)
+                long score = game.game_map->at({x, y})->halite
+                            + game.game_map->at({x, (y + 1) % h})->halite
+                            + game.game_map->at({(x + 1) % w, y})->halite
+                            + game.game_map->at({(x - 1 + w) % w, y})->halite
+                            + game.game_map->at({x, (y - 1 + h) % h})->halite;
 
-                // Scan de la case et voisines
-                local_halite += game.game_map->at({x, y})->halite;
-                local_halite += game.game_map->at({x, (y+1)%h})->halite; // Sud (Safe)
-                local_halite += game.game_map->at({(x+1)%w, y})->halite; // Est (Safe)
-                local_halite += game.game_map->at({(x-1+w)%w, y})->halite; // Ouest (Safe)
-                local_halite += game.game_map->at({x, (y-1+h)%h})->halite; // Nord (Safe)
-
-                if (local_halite > max_score) {
-                    max_score = local_halite;
+                if (score > max_score)
+                {
+                    max_score = score;
                     best_pos = {x, y};
                 }
             }
         }
-        this->best_cluster_position = best_pos;
+        best_cluster_position = best_pos;
     }
 
-    // Vérifie si une position est sûre pour s'y déplacer
-    bool Blackboard::is_position_safe(const hlt::Position& pos) const {
-        // 1. Est-ce que un de nos vaisseaux a déjà réservé cette case ce tour-ci ?
-        if (reserved_positions.count(pos) > 0) {
-            return false;
-        }
-        // 2. Est-ce que la case est marquée comme zone dangereuse (ex: proximité ennemi) ?
-        if (danger_zones.count(pos) > 0) {
-            return false;
-        }
-        // Si tout est bon, la case est safe
-        return true;
+    // Requetes spatiales
+
+    bool Blackboard::is_position_safe(const hlt::Position &pos) const
+    {
+        return reserved_positions.count(pos) == 0 && danger_zones.count(pos) == 0;
     }
 
-    // Vérifie simplement si la case est réservée
-    bool Blackboard::is_position_reserved(const hlt::Position& pos) const {
+    bool Blackboard::is_position_reserved(const hlt::Position &pos) const
+    {
         return reserved_positions.count(pos) > 0;
     }
 
-    // Marque une position comme occupée pour ce tour
-    void Blackboard::reserve_position(const hlt::Position& pos, hlt::EntityId ship_id) {
-        // On l'ajoute au set pour la recherche rapide (collisions)
-        reserved_positions.insert(pos);
-        // On l'ajoute à la map pour savoir QUI va là (utile pour le debug ou la logique avancée)
-        targeted_cells[pos] = ship_id;
-    }
-
-    // Vérifie si un vaisseau coincé occupe cette position
-    bool Blackboard::is_position_stuck(const hlt::Position& pos) const {
+    bool Blackboard::is_position_stuck(const hlt::Position &pos) const
+    {
         return stuck_positions.count(pos) > 0;
     }
 
-    // Nettoyage au début de chaque tour
-    void Blackboard::clear_turn_data() {
+    void Blackboard::reserve_position(const hlt::Position &pos, hlt::EntityId ship_id)
+    {
+        reserved_positions.insert(pos);
+        targeted_cells[pos] = ship_id;
+    }
+
+    void Blackboard::clear_turn_data()
+    {
         reserved_positions.clear();
         targeted_cells.clear();
         danger_zones.clear();
         stuck_positions.clear();
     }
-}
+
+} // namespace bot

@@ -61,7 +61,7 @@ FSM_STATE::FSM_STATE(FSM *subFSM)
 
 void FSM_STATE::InitTransitions(size_t count, ...)
 {
-    if (m_transitions_count) // already initialized
+    if (m_transitions_count) // Deja initialise
         return;
 
     m_transitions_count = count;

@@ -1,53 +1,53 @@
 #pragma once
 
-#include "hlt/game.hpp"
-#include "hlt/command.hpp"
+#include "utils.hpp"
 #include "ship_fsm.hpp"
 #include "traffic_manager.hpp"
+#include "hlt/game.hpp"
+#include "hlt/command.hpp"
+
 #include <vector>
 #include <unordered_map>
 #include <memory>
 
-namespace bot {
-
-    class BotPlayer {
+namespace bot
+{
+    class BotPlayer
+    {
     public:
-        BotPlayer(hlt::Game& game_instance);
+        explicit BotPlayer(hlt::Game &game_instance);
+
+        // Entry point : retourne la liste de commandes du tour
         std::vector<hlt::Command> step();
 
     private:
-        hlt::Game &game;
+        hlt::Game &m_game;
 
-        // Gestion FSM par vaisseau (micro)
+        // Instances FSM par ship
         std::unordered_map<hlt::EntityId, std::unique_ptr<ShipFSM>> m_ship_fsms;
 
-        // 1. Analyse : Met à jour le blackboard et détecte les menaces
+        // Pipeline du tour
         void perform_analysis();
-
-        // 2. Stratégie : Décide si on spawn un nouveau vaisseau
-        void handle_spawn(std::vector<hlt::Command>& commands);
-
-        // 3. Dispatcher : Boucle sur tous les vaisseaux pour donner les missions
+        void handle_spawn(std::vector<hlt::Command> &commands);
         void assign_missions_to_ships();
+        void execute_missions(std::vector<hlt::Command> &commands);
 
-        // 4. Exécution : Transforme les missions en commandes via FSM + TrafficManager
-        void execute_missions(std::vector<hlt::Command>& commands);
+        // Logique de mission
+        void determine_mission(std::shared_ptr<hlt::Ship> ship, bool under_threat);
 
-        // Sous-fonction pour décider de la mission d'un seul vaisseau
-        void determine_mission_for_single_ship(std::shared_ptr<hlt::Ship> ship, bool under_threat);
+        // Utilitaires macro / micro
 
-        // --- Helpers d'intégration macro/micro ---
-        // Synchronise les FSM avec les vaisseaux vivants
+        // Synchronise les FSM avec les ships vivants
         void sync_ship_fsms();
 
-        // Génère un MoveRequest de navigation vers une cible (pour missions spéciales)
-        MoveRequest make_navigate_request(std::shared_ptr<hlt::Ship> ship,
-                                          const hlt::Position& target, int priority);
+        // Collecte toutes les positions de depots
+        std::vector<hlt::Position> get_dropoff_positions() const;
 
-        // Retourne la liste des positions de dépôt (shipyard + dropoffs)
-        std::vector<hlt::Position> get_dropoff_positions();
+        // Depot le plus proche d'un ship donne
+        hlt::Position find_nearest_dropoff(std::shared_ptr<hlt::Ship> ship) const;
 
-        // Trouve le dropoff le plus proche d'un vaisseau
-        hlt::Position find_nearest_dropoff(std::shared_ptr<hlt::Ship> ship);
+        // Distance du ship ennemi le plus proche
+        int compute_nearest_enemy_distance() const;
     };
+
 } // namespace bot

@@ -1,111 +1,98 @@
 #pragma once
 
-#include <set>
-#include <map>
+#include "utils.hpp"
 #include "hlt/position.hpp"
 #include "hlt/game.hpp"
 
-namespace bot {
+#include <set>
+#include <map>
 
-    // Liste des missions possibles
-    enum class MissionType {
-        MINING,         // Comportement par défaut (chercher des clusters)
-        RETURNING,      // Rempli, je rentre
-        CONSTRUCTING,   // Je vais construire un Dropoff
-        ATTACKING,      // Je fonce sur l'ennemi
-        DEFENDING,      // Je protège ma base
-        LOOTING         // Je ramasse les miettes
-    };
+namespace bot
+{
 
-    enum class GamePhase
+    // Stockage centralise pour la couche strategique
+    struct Blackboard
     {
-        EARLY,  // Tours 1-100
-        MID,    // Tours 100-300
-        LATE,   // Tours 300-400
-        ENDGAME // Tours 400-500
-    };
-
-    // Nécessaire pour utiliser Position dans les sets/maps
-    struct PositionComparator {
-        bool operator()(const hlt::Position& a, const hlt::Position& b) const {
-            if (a.y != b.y) return a.y < b.y;
-            return a.x < b.x;
-        }
-    };
-
-    struct Blackboard {
-
-        // Création du Singleton
+        // Singleton
         static Blackboard &get_instance()
         {
             static Blackboard instance;
             return instance;
         }
 
-        // pour les escouades en couple : ID de Mr.Attaque -> ID de Mr.RamasseMiette
+        Blackboard(Blackboard const &) = delete;
+        Blackboard(Blackboard &&) = delete;
+
+        // Dimensions de la carte
+
+        int map_width;
+        int map_height;
+
+        // Initialisation a la premiere lecture de la carte
+        void init(int width, int height);
+
+        // Metriques par tour
+
+        long total_halite;
+        int average_halite;
+        int current_turn;
+        int max_turns;
+        int total_ships_alive;
+        GamePhase current_phase;
+
+        // Met a jour total_halite / average_halite en scannant la carte
+        void update_metrics(hlt::Game &game);
+
+        // Determine la phase de jeu actuelle
+        void update_phase(int turn, int total_turns);
+
+        // Trouve le meilleur cluster en croix sur la carte
+        void update_best_cluster(hlt::Game &game);
+
+        // Verifie si creer un vaisseau est rentable ce tour
+        bool should_spawn(const hlt::Player &me);
+
+        // Cible cluster
+
+        hlt::Position best_cluster_position;
+
+        // Etat des missions des vaisseaux
+
+        std::map<hlt::EntityId, MissionType> ship_missions;
+        std::map<hlt::EntityId, hlt::Position> ship_targets;
+
+        // Assigne une mission + cible optionnelle a un vaisseau
+        void assign_mission(hlt::EntityId id, MissionType mission, hlt::Position target = {0, 0});
+
+        // Systeme d'escouade
+
+        // Lien garde du corps -> vaisseau protege
         std::map<hlt::EntityId, hlt::EntityId> squad_links;
 
-        // variable pour stocker la "Zone de Chasse" (chez l'ennemi)
-        hlt::Position target_loot_zone = {0,0};
+        // Zone de pillage actuelle (territoire ennemi)
+        hlt::Position target_loot_zone = {0, 0};
 
-        Blackboard(Blackboard const&) = delete;
-        Blackboard(Blackboard&&) = delete;
+        // Suivi spatial par tour
+
+        std::set<hlt::Position, PositionComparator> reserved_positions;
+        std::map<hlt::Position, hlt::EntityId, PositionComparator> targeted_cells;
+        std::set<hlt::Position> danger_zones;
+        std::set<hlt::Position> stuck_positions;
+
+        bool is_position_safe(const hlt::Position &pos) const;
+        bool is_position_reserved(const hlt::Position &pos) const;
+        bool is_position_stuck(const hlt::Position &pos) const;
+        void reserve_position(const hlt::Position &pos, hlt::EntityId ship_id);
+
+        // Reinitialise les donnees du tour
+        void clear_turn_data();
 
     private:
-        // Constructeur privé
-        Blackboard() : map_width(0), map_height(0), total_halite(0), average_halite(0), current_turn(0), max_turns(0) { }
-
-public:
-
-    int map_width;                          // Largeur de la carte
-    int map_height;                         // Hauteur de la carte
-
-    std::set<hlt::Position> danger_zones;    // Cases de position dangereuse
-    std::set<hlt::Position> stuck_positions; // Cases occupées par des ships physiquement coincés
-
-    bool is_position_stuck(const hlt::Position &pos) const; // Case bloquée par un ship stuck ?
-
-    // Statistiques
-    long total_halite;      // Quantité totale d'argent sur la map
-    int average_halite;     // Richesse moyenne d'une case
-    int current_turn;
-    int max_turns;
-    GamePhase current_phase;
-    int total_ships_alive;  // Nombre de bateaux
-
-        std::map<hlt::EntityId, MissionType> ship_missions; // ID du vaisseau -> Sa mission actuelle
-        std::map<hlt::EntityId, hlt::Position> ship_targets; // ID du vaisseau -> Sa cible précise
-
-        // Fonction utilitaire pour donner un ordre
-        void assign_mission(hlt::EntityId id, MissionType mission, hlt::Position target = {0,0}) {
-            ship_missions[id] = mission;
-            ship_targets[id] = target;
-        }
-
-        // Initialisation des dimensions (à appeler au début)
-        void init(int width, int height) {
-            map_width = width;
-            map_height = height;
-        }
-
-        // Structures de données avec le comparateur
-        std::set<hlt::Position, PositionComparator> reserved_positions;             // Cases occupées en ce moment
-        std::map<hlt::Position, hlt::EntityId, PositionComparator> targeted_cells;  // Cases "destination" d'un bateau
-        hlt::Position best_cluster_position; // La destination idéale
-
-        // Fonctions d'analyse
-        void update_metrics(hlt::Game& game);              // Scanne la carte
-        void update_phase(int turn, int total_turns);      // Met à jour la phase (Early/Mid/Late)
-        bool should_spawn(const hlt::Player& me);
-
-        void update_best_cluster(hlt::Game& game);
-
-        // Fonctions de base
-        bool is_position_safe(const hlt::Position& pos) const;                      // Case safe ?
-        bool is_position_reserved(const hlt::Position& pos) const;                  // Case occupée ?
-        void reserve_position(const hlt::Position& pos, hlt::EntityId ship_id);     // Reserver une case
-        void clear_turn_data();                                                     // Reset des données temporaires
-
+        Blackboard()
+            : map_width(0), map_height(0),
+              total_halite(0), average_halite(0),
+              current_turn(0), max_turns(0),
+              total_ships_alive(0), current_phase(GamePhase::EARLY) {}
     };
 
 } // namespace bot

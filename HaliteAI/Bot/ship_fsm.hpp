@@ -1,5 +1,6 @@
 #pragma once
 
+#include "bot_parameters.hpp"
 #include "fsm.hpp"
 #include "traffic_manager.hpp"
 #include "hlt/command.hpp"
@@ -12,71 +13,69 @@
 
 namespace bot
 {
-  struct ShipFSMContext
-  {
-    std::shared_ptr<hlt::Ship> ship;
-    hlt::GameMap *game_map;
-    hlt::Position shipyard_position;
-    int turns_remaining;
-    MoveRequest result_move_request;
-  };
+    // Contexte passe aux callbacks FSM a chaque tick
+    struct ShipFSMContext
+    {
+        std::shared_ptr<hlt::Ship> ship;
+        hlt::GameMap *game_map;
+        hlt::Position shipyard_position;
+        int turns_remaining;
+        MoveRequest result_move_request;
+    };
 
-  class ShipFSM
-  {
-  private:
-    hlt::EntityId m_ship_id;
+    // FSM par ship : explore -> collect -> return -> explore ...
+    class ShipFSM
+    {
+    private:
+        hlt::EntityId m_ship_id;
+        FSM *m_fsm;
 
-    FSM *m_fsm;
+        // Etats
+        FSM_STATE *m_state_explore;
+        FSM_STATE *m_state_collect;
+        FSM_STATE *m_state_return;
+        FSM_STATE *m_state_urgent_return;
+        FSM_STATE *m_state_flee;
 
-    // STATES
-    FSM_STATE *m_state_explore;
-    FSM_STATE *m_state_collect;
-    FSM_STATE *m_state_return;
-    FSM_STATE *m_state_urgent_return;
-    FSM_STATE *m_state_flee;
+        // Transitions
+        FSM_TRANSITION *m_trans_explore_to_return;
+        FSM_TRANSITION *m_trans_explore_to_collect;
+        FSM_TRANSITION *m_trans_explore_to_urgent;
 
-    // TRANSITIONS
-    FSM_TRANSITION *m_trans_explore_to_return;
-    FSM_TRANSITION *m_trans_explore_to_collect;
-    FSM_TRANSITION *m_trans_explore_to_urgent;
+        FSM_TRANSITION *m_trans_collect_to_return;
+        FSM_TRANSITION *m_trans_collect_to_explore;
+        FSM_TRANSITION *m_trans_collect_to_urgent;
 
-    FSM_TRANSITION *m_trans_collect_to_return;
-    FSM_TRANSITION *m_trans_collect_to_explore;
-    FSM_TRANSITION *m_trans_collect_to_urgent;
+        FSM_TRANSITION *m_trans_return_to_explore;
+        FSM_TRANSITION *m_trans_return_to_urgent;
 
-    FSM_TRANSITION *m_trans_return_to_explore;
-    FSM_TRANSITION *m_trans_return_to_urgent;
+        FSM_TRANSITION *m_trans_flee_to_explore;
+        FSM_TRANSITION *m_trans_flee_to_urgent;
 
-    FSM_TRANSITION *m_trans_flee_to_explore;
-    FSM_TRANSITION *m_trans_flee_to_urgent;
+        // Callbacks de transition
+        static float transition_is_full(void *data);
+        static float transition_cell_has_halite(void *data);
+        static float transition_cell_empty(void *data);
+        static float transition_at_shipyard(void *data);
+        static float transition_urgent_return(void *data);
+        static float transition_always(void *data);
 
-    // CONSTANTS
-    static constexpr int SAFE_RETURN_TURNS = 15;
-    static constexpr float HALITE_FILL_THRESHOLD = 0.9f;
-    static constexpr float HALITE_LOW_THRESHOLD = 0.1f;
+        // Callbacks de comportement
+        static void behavior_explore(void *data);
+        static void behavior_collect(void *data);
+        static void behavior_return(void *data);
+        static void behavior_urgent_return(void *data);
 
-    // TRANSITION CALLBACKS
-    static float transition_is_full(void *data);
-    static float transition_cell_has_halite(void *data);
-    static float transition_cell_empty(void *data);
-    static float transition_at_shipyard(void *data);
-    static float transition_urgent_return(void *data);
-    static float transition_always(void *data);
+    public:
+        explicit ShipFSM(hlt::EntityId ship_id);
+        ~ShipFSM();
 
-    // BEHAVIOR CALLBACKS
-    static void behavior_explore(void *data);
-    static void behavior_collect(void *data);
-    static void behavior_return(void *data);
-    static void behavior_urgent_return(void *data);
+        // Tick FSM : evalue transitions, execute comportement, retourne MoveRequest
+        MoveRequest update(std::shared_ptr<hlt::Ship> ship,
+                           hlt::GameMap &game_map,
+                           const hlt::Position &shipyard_position,
+                           int turns_remaining);
 
-  public:
-    explicit ShipFSM(hlt::EntityId ship_id);
-    ~ShipFSM();
-
-    MoveRequest update(std::shared_ptr<hlt::Ship> ship,
-                        hlt::GameMap &game_map, const hlt::Position &shipyard_position,
-                        int turns_remaining);
-
-    hlt::EntityId get_ship_id() const { return m_ship_id; }
-  };
+        hlt::EntityId get_ship_id() const { return m_ship_id; }
+    };
 } // namespace bot
