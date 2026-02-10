@@ -28,7 +28,6 @@ namespace bot
 
         // Pipeline du tour
         void perform_analysis();
-        void handle_spawn(std::vector<hlt::Command> &commands);
         void assign_missions_to_ships();
         void execute_missions(std::vector<hlt::Command> &commands);
 

@@ -6,6 +6,7 @@
 
 #include <set>
 #include <map>
+#include <vector>
 
 namespace bot
 {
@@ -46,8 +47,14 @@ namespace bot
         // Determine la phase de jeu actuelle
         void update_phase(int turn, int total_turns);
 
-        // Trouve le meilleur cluster en croix sur la carte
-        void update_best_cluster(hlt::Game &game);
+        // Analyse la carte et produit les clusters exploitables (hors territoire ennemi)
+        void update_clusters(hlt::Game &game);
+
+        // Assigne une cible unique a chaque ship MINING pour repartir la flotte
+        void assign_ship_targets(hlt::Game &game);
+
+        // Met a jour les positions des structures ennemies
+        void update_enemy_structures(hlt::Game &game);
 
         // Verifie si creer un vaisseau est rentable ce tour
         bool should_spawn(const hlt::Player &me);
@@ -55,6 +62,24 @@ namespace bot
         // Cible cluster
 
         hlt::Position best_cluster_position;
+
+        // Top N clusters tries par score
+        std::vector<hlt::Position> cluster_targets;
+
+        // Cible individuelle par ship
+        std::map<hlt::EntityId, hlt::Position> ship_explore_targets;
+
+        // Positions des structures ennemies (shipyard + dropoffs)
+        std::vector<hlt::Position> enemy_structures;
+
+        // Distance en dessous de laquelle une cell est consideree en zone ennemie
+        static constexpr int ENEMY_ZONE_RADIUS = 8;
+
+        // Nombre max de clusters a retenir
+        static constexpr int MAX_CLUSTERS = 8;
+
+        // Verifie si une position est en territoire ennemi
+        bool is_enemy_territory(const hlt::Position &pos, hlt::GameMap &game_map) const;
 
         // Etat des missions des vaisseaux
 
@@ -66,7 +91,7 @@ namespace bot
 
         // Systeme d'escouade
 
-        // Lien garde du corps -> vaisseau protege
+        // Lien ship_id -> squad_id pour les ships en escouade
         std::map<hlt::EntityId, hlt::EntityId> squad_links;
 
         // Zone de pillage actuelle (territoire ennemi)

@@ -25,9 +25,8 @@ namespace bot
         std::vector<hlt::Command> commands;
 
         perform_analysis();
-        handle_spawn(commands);
         assign_missions_to_ships();
-        execute_missions(commands);
+        execute_missions(commands); // Resout les mouvements ET spawn si possible
 
         return commands;
     }
@@ -39,24 +38,29 @@ namespace bot
         bb.clear_turn_data();
         bb.update_metrics(m_game);
         bb.update_phase(m_game.turn_number, hlt::constants::MAX_TURNS);
-        bb.update_best_cluster(m_game);
+        bb.update_enemy_structures(m_game);
+        bb.update_clusters(m_game);
+        bb.assign_ship_targets(m_game);
+
+        // Nettoyer les donnees des ships morts
+        for (auto it = bb.ship_missions.begin(); it != bb.ship_missions.end();)
+        {
+            if (!m_game.me->ships.count(it->first))
+            {
+                bb.ship_targets.erase(it->first);
+                bb.squad_links.erase(it->first);
+                bb.ship_explore_targets.erase(it->first);
+                it = bb.ship_missions.erase(it);
+            }
+            else
+                ++it;
+        }
 
         // Marquer les ships stuck
         for (const auto &entry : m_game.me->ships)
         {
             if (is_ship_stuck(*entry.second, *m_game.game_map))
                 bb.stuck_positions.insert(entry.second->position);
-        }
-    }
-
-    // Spawn
-    void BotPlayer::handle_spawn(std::vector<hlt::Command> &commands)
-    {
-        Blackboard &bb = Blackboard::get_instance();
-        if (bb.should_spawn(*m_game.me))
-        {
-            commands.push_back(m_game.me->shipyard->spawn());
-            bb.reserve_position(m_game.me->shipyard->position, -1);
         }
     }
 
@@ -92,97 +96,27 @@ namespace bot
     {
         Blackboard &bb = Blackboard::get_instance();
         hlt::EntityId id = ship->id;
+        hlt::Position nearest = find_nearest_dropoff(ship);
+        int dist_to_dropoff = m_game.game_map->calculate_distance(ship->position, nearest);
+        int turns_remaining = hlt::constants::MAX_TURNS - m_game.turn_number;
 
-        // Reset auto apres depot
+        // Reset de la mission de retour
         if (bb.ship_missions[id] == MissionType::RETURNING && ship->halite == 0)
             bb.assign_mission(id, MissionType::MINING);
 
-        // CONSTRUCTION
-        int dist_base = m_game.game_map->calculate_distance(ship->position, m_game.me->shipyard->position);
-        bool has_halite = m_game.me->halite >= params::DROPOFF_COST;
-        bool fleet_big_enough = m_game.me->ships.size() >= static_cast<size_t>(params::MIN_SHIPS_FOR_DROPOFF);
-        bool dist_sufficient = dist_base > params::DROPOFF_MIN_DISTANCE;
-        bool spot_rich_enough = m_game.game_map->at(ship->position)->halite > params::DROPOFF_SPOT_HALITE;
-        bool not_endgame = bb.current_phase != GamePhase::ENDGAME;
-        bool can_build = has_halite && fleet_big_enough && dist_sufficient && spot_rich_enough && not_endgame;
-        if (can_build)
+        // ENDGAME URGENT : seulement si le ship doit partir MAINTENANT pour rentrer a temps
+        if (turns_remaining < dist_to_dropoff + params::SAFE_RETURN_TURNS)
         {
-            bb.assign_mission(id, MissionType::CONSTRUCTING);
+            bb.assign_mission(id, MissionType::RETURNING, nearest);
             return;
         }
 
-        // RETURN
-        if (ship->halite > hlt::constants::MAX_HALITE * params::RETURN_RATIO || bb.current_phase == GamePhase::ENDGAME)
-        {
-            bb.assign_mission(id, MissionType::RETURNING, m_game.me->shipyard->position);
+        // Si le ship est riche et proche du dropoff, le faire retourner
+        if (bb.ship_missions.count(id) && bb.ship_missions[id] == MissionType::MINING)
             return;
-        }
 
-        // DEFENSE
-        if (under_threat && dist_base < params::DEFENSE_INTERCEPT_DIST && ship->halite < params::DEFENSE_HALITE_LIMIT)
-        {
-            bb.assign_mission(id, MissionType::DEFENDING, m_game.me->shipyard->position);
-            return;
-        }
-
-        // ESCOUADE OFFENSIVE
-        if (bb.current_phase == GamePhase::LATE && m_game.me->ships.size() > static_cast<size_t>(params::SQUAD_MIN_FLEET_SIZE))
-        {
-            if (bb.ship_missions[id] == MissionType::LOOTING)
-            {
-                bb.assign_mission(id, MissionType::LOOTING, bb.target_loot_zone);
-                return;
-            }
-            if (bb.squad_links.count(id))
-            {
-                hlt::EntityId protected_id = bb.squad_links[id];
-                if (m_game.me->ships.count(protected_id))
-                    bb.assign_mission(id, MissionType::ATTACKING, m_game.me->ships[protected_id]->position);
-                else
-                {
-                    bb.squad_links.erase(id);
-                    bb.assign_mission(id, MissionType::RETURNING);
-                }
-                return;
-            }
-            if (bb.ship_missions[id] == MissionType::MINING)
-            {
-                int dist_cluster = m_game.game_map->calculate_distance(
-                    m_game.me->shipyard->position, bb.best_cluster_position);
-
-                if (dist_cluster > params::LOOT_DIST_THRESHOLD)
-                {
-                    bb.target_loot_zone = bb.best_cluster_position;
-                    bb.assign_mission(id, MissionType::LOOTING, bb.target_loot_zone);
-
-                    // Recruter le mineur inactif le plus proche comme garde du corps
-                    hlt::EntityId buddy_id = -1;
-                    int min_d = 9999;
-                    for (auto &other : m_game.me->ships)
-                    {
-                        if (other.first == id)
-                            continue;
-                        if (bb.ship_missions[other.first] != MissionType::MINING)
-                            continue;
-                        int d = m_game.game_map->calculate_distance(ship->position, other.second->position);
-                        if (d < min_d && d < params::BUDDY_MAX_DIST)
-                        {
-                            min_d = d;
-                            buddy_id = other.first;
-                        }
-                    }
-                    if (buddy_id != -1)
-                    {
-                        bb.squad_links[buddy_id] = id;
-                        bb.assign_mission(buddy_id, MissionType::ATTACKING, ship->position);
-                    }
-                    return;
-                }
-            }
-        }
-
-        // DEFAUT : MINING
-        if (bb.ship_missions.find(id) == bb.ship_missions.end() || bb.ship_missions[id] == MissionType::DEFENDING)
+        // DEFAUT : nouveau ship -> MINING
+        if (bb.ship_missions.find(id) == bb.ship_missions.end())
         {
             bb.assign_mission(id, MissionType::MINING, bb.best_cluster_position);
         }
@@ -201,6 +135,10 @@ namespace bot
         TrafficManager::instance().init(*m_game.game_map, dropoffs,
                                         m_game.me->ships, turns_remaining);
 
+        // Determiner si on veut spawn avant de resoudre les mouvements, pour forcer les ships sur le shipyard a degager
+        bool want_spawn = bb.should_spawn(*m_game.me);
+        hlt::Position shipyard_pos = m_game.me->shipyard->position;
+
         std::vector<MoveRequest> requests;
         requests.reserve(m_game.me->ships.size());
 
@@ -209,38 +147,42 @@ namespace bot
             auto ship = entry.second;
             MissionType mission = bb.ship_missions[ship->id];
 
-            // CONSTRUCTION : pas de resolve de trafic
-            if (mission == MissionType::CONSTRUCTING)
-            {
-                commands.push_back(ship->make_dropoff());
-                m_game.me->halite -= params::DROPOFF_COST;
-                continue;
-            }
-
             hlt::Position nearest = find_nearest_dropoff(ship);
             MoveRequest req;
+
+            // Si on veut spawn et que le ship est sur le shipyard, forcer un move pour liberer le spawn
+            bool on_shipyard = (m_game.game_map->normalize(ship->position) == m_game.game_map->normalize(shipyard_pos));
+            if (want_spawn && on_shipyard)
+            {
+                // Si la cell adjacente la plus riche est meilleure que le shipyard, y aller directement
+                auto scored = score_directions_by_halite(ship->position, *m_game.game_map);
+                sort_scored_directions(scored);
+
+                hlt::Direction best_dir;
+                std::vector<hlt::Direction> alternatives;
+                extract_best_and_alternatives(scored, best_dir, alternatives);
+
+                hlt::Position desired = m_game.game_map->normalize(ship->position.directional_offset(best_dir));
+                req = MoveRequest{ship->id, ship->position, desired,
+                                  best_dir, MoveRequest::SHIP_ON_DROPOFF_PRIORITY, alternatives};
+                requests.push_back(req);
+                continue;
+            }
 
             switch (mission)
             {
             case MissionType::RETURNING:
             {
-                int prio = (bb.current_phase == GamePhase::ENDGAME)
-                               ? MoveRequest::URGENT_RETURN_PRIORITY
-                               : MoveRequest::RETURN_PRIORITY;
+                int dist = m_game.game_map->calculate_distance(ship->position, nearest);
+                int prio;
+                if (turns_remaining < dist + params::SAFE_RETURN_TURNS)
+                    prio = (dist <= 2) ? MoveRequest::URGENT_RETURN_NEAR_PRIORITY
+                                       : MoveRequest::URGENT_RETURN_PRIORITY;
+                else
+                    prio = MoveRequest::RETURN_PRIORITY;
                 req = make_move_request(ship, nearest, prio, *m_game.game_map, blackboard_is_stuck);
                 break;
             }
-            case MissionType::DEFENDING:
-                req = make_move_request(ship, bb.ship_targets[ship->id],
-                                        MoveRequest::FLEE_PRIORITY, *m_game.game_map, blackboard_is_stuck);
-                break;
-
-            case MissionType::ATTACKING:
-            case MissionType::LOOTING:
-                req = make_move_request(ship, bb.ship_targets[ship->id],
-                                        MoveRequest::EXPLORE_PRIORITY, *m_game.game_map, blackboard_is_stuck);
-                break;
-
             case MissionType::MINING:
             default:
                 if (m_ship_fsms.count(ship->id))
@@ -256,6 +198,32 @@ namespace bot
 
         // Resolve des mouvements
         std::vector<MoveResult> results = TrafficManager::instance().resolve_all(requests);
+
+        // Verifier si le shipyard sera libre apres resolve
+        bool shipyard_free = true;
+        for (const auto &res : results)
+        {
+            auto ship_it = m_game.me->ships.find(res.m_ship_id);
+            if (ship_it == m_game.me->ships.end())
+                continue;
+
+            hlt::Position final_pos;
+            if (res.m_final_direction == hlt::Direction::STILL)
+                final_pos = m_game.game_map->normalize(ship_it->second->position);
+            else
+                final_pos = m_game.game_map->normalize(
+                    ship_it->second->position.directional_offset(res.m_final_direction));
+
+            if (final_pos == m_game.game_map->normalize(shipyard_pos))
+            {
+                shipyard_free = false;
+                break;
+            }
+        }
+
+        // Spawn seulement si le shipyard est libre et que la mission de spawn est validee
+        if (want_spawn && shipyard_free)
+            commands.push_back(m_game.me->shipyard->spawn());
 
         for (const auto &res : results)
         {
