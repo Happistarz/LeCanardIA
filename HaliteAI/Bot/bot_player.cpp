@@ -1,5 +1,6 @@
 #include "bot_player.hpp"
-#include "ship_states.hpp"
+#include "map_utils.hpp"
+#include "bot_constants.hpp"
 #include "hlt/log.hpp"
 #include "hlt/constants.hpp"
 #include <algorithm>
@@ -169,10 +170,12 @@ namespace bot
                 hlt::Position target = bb_ref.planned_dropoff_pos;
                 hlt::Direction best_dir;
                 std::vector<hlt::Direction> alternatives;
-                ShipExploreState::navigate_toward_static(ship, *game_map, target, best_dir, alternatives);
+                map_utils::navigate_toward(ship, *game_map, target,
+                                           bb_ref.stuck_positions, bb_ref.danger_zones,
+                                           best_dir, alternatives);
                 hlt::Position desired = game_map->normalize(ship->position.directional_offset(best_dir));
                 requests.push_back(MoveRequest{ship->id, ship->position, desired,
-                                               best_dir, MoveRequest::RETURN_PRIORITY, alternatives});
+                                               best_dir, constants::RETURN_PRIORITY, alternatives});
                 continue;
             }
 
@@ -204,7 +207,7 @@ namespace bot
 
         // Conditions de base
         int num_dropoffs = static_cast<int>(me->dropoffs.size());
-        if (num_dropoffs >= Blackboard::MAX_DROPOFFS)
+        if (num_dropoffs >= constants::MAX_DROPOFFS)
             return false;
         if (bb.current_phase == GamePhase::LATE || bb.current_phase == GamePhase::ENDGAME)
         {
@@ -213,11 +216,11 @@ namespace bot
             bb.dropoff_ship_id = -1;
             return false;
         }
-        if (bb.total_ships_alive < Blackboard::MIN_SHIPS_FOR_DROPOFF)
+        if (bb.total_ships_alive < constants::MIN_SHIPS_FOR_DROPOFF)
             return false;
 
         // Distance minimale adaptee a la taille de la map
-        int min_depot_dist = std::max(8, game_map->width / Blackboard::MIN_DROPOFF_DEPOT_DISTANCE_RATIO);
+        int min_depot_dist = std::max(8, game_map->width / constants::MIN_DROPOFF_DEPOT_DISTANCE_RATIO);
 
         // --- Si un ship assigne est deja mort, reset le plan ---
         if (bb.dropoff_ship_id >= 0 &&

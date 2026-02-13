@@ -1,7 +1,8 @@
 #pragma once
 
 #include "fsm.hpp"
-#include "traffic_manager.hpp"
+#include "move_request.hpp"
+#include "bot_constants.hpp"
 #include "hlt/command.hpp"
 #include "hlt/entity.hpp"
 #include "hlt/game_map.hpp"
@@ -49,11 +50,6 @@ namespace bot
 
     FSM_TRANSITION *m_trans_flee_to_explore;
     FSM_TRANSITION *m_trans_flee_to_urgent;
-
-    // CONSTANTS
-    static constexpr int SAFE_RETURN_TURNS = 15;
-    static constexpr float HALITE_FILL_THRESHOLD = 0.9f;
-    static constexpr float HALITE_LOW_THRESHOLD = 0.1f;
 
     // TRANSITION CALLBACKS
     static float transition_is_full(void *data);

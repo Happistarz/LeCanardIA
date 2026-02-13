@@ -1,4 +1,5 @@
 #include "traffic_manager.hpp"
+#include "bot_constants.hpp"
 #include "hlt/constants.hpp"
 
 #include <algorithm>
@@ -41,10 +42,10 @@ namespace bot
             // Ship sur un dropoff, HIGH PRIORITY
             if (is_dropoff(m_game_map->normalize(req.m_current)))
             {
-                req.m_priority = MoveRequest::SHIP_ON_DROPOFF_PRIORITY;
+                req.m_priority = constants::SHIP_ON_DROPOFF_PRIORITY;
             }
             // Ship en URGENT RETURN
-            else if (req.m_priority >= MoveRequest::URGENT_RETURN_PRIORITY)
+            else if (req.m_priority >= constants::URGENT_RETURN_PRIORITY)
             {
                 // Chercher le dropoff le plus proche
                 int min_dist = 9999;
@@ -58,7 +59,7 @@ namespace bot
                 // Si distance <= 2, c'est URGENT RETURN NEAR
                 if (min_dist <= 2)
                 {
-                    req.m_priority = MoveRequest::URGENT_RETURN_NEAR_PRIORITY;
+                    req.m_priority = constants::URGENT_RETURN_NEAR_PRIORITY;
                 }
             }
         }

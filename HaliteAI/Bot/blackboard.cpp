@@ -1,4 +1,5 @@
 #include "blackboard.hpp"
+#include "map_utils.hpp"
 #include "hlt/game_map.hpp"
 
 #include <cstdlib>
@@ -47,19 +48,19 @@ namespace bot
             for (int x = 0; x < w; ++x)
             {
                 int score = 0;
-                for (int dy = -HEATMAP_RADIUS; dy <= HEATMAP_RADIUS; ++dy)
+                for (int dy = -constants::HEATMAP_RADIUS; dy <= constants::HEATMAP_RADIUS; ++dy)
                 {
-                    for (int dx = -HEATMAP_RADIUS; dx <= HEATMAP_RADIUS; ++dx)
+                    for (int dx = -constants::HEATMAP_RADIUS; dx <= constants::HEATMAP_RADIUS; ++dx)
                     {
                         int dist = std::abs(dx) + std::abs(dy);
-                        if (dist > HEATMAP_RADIUS)
+                        if (dist > constants::HEATMAP_RADIUS)
                             continue;
 
                         int nx = ((x + dx) % w + w) % w;
                         int ny = ((y + dy) % h + h) % h;
 
                         // Ponderation : les cases proches comptent plus
-                        int weight = HEATMAP_RADIUS + 1 - dist;
+                        int weight = constants::HEATMAP_RADIUS + 1 - dist;
                         score += game_map.cells[ny][nx].halite * weight;
                     }
                 }
@@ -78,12 +79,12 @@ namespace bot
         int best_score = -1;
         hlt::Position best_pos = ship_pos;
 
-        for (int dy = -EXPLORE_SEARCH_RADIUS; dy <= EXPLORE_SEARCH_RADIUS; ++dy)
+        for (int dy = -constants::EXPLORE_SEARCH_RADIUS; dy <= constants::EXPLORE_SEARCH_RADIUS; ++dy)
         {
-            for (int dx = -EXPLORE_SEARCH_RADIUS; dx <= EXPLORE_SEARCH_RADIUS; ++dx)
+            for (int dx = -constants::EXPLORE_SEARCH_RADIUS; dx <= constants::EXPLORE_SEARCH_RADIUS; ++dx)
             {
                 int dist = std::abs(dx) + std::abs(dy);
-                if (dist > EXPLORE_SEARCH_RADIUS || dist == 0)
+                if (dist > constants::EXPLORE_SEARCH_RADIUS || dist == 0)
                     continue;
 
                 int nx = ((ship_pos.x + dx) % w + w) % w;
@@ -130,7 +131,7 @@ namespace bot
                 bool too_close = false;
                 for (const auto &depot : existing_depots)
                 {
-                    int dist = toroidal_distance(candidate, depot, w, h);
+                    int dist = map_utils::toroidal_distance(candidate, depot, w, h);
                     if (dist < min_depot_distance)
                     {
                         too_close = true;

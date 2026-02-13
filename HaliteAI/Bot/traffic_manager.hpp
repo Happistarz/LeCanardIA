@@ -1,5 +1,6 @@
 #pragma once
 
+#include "move_request.hpp"
 #include "hlt/entity.hpp"
 #include "hlt/position.hpp"
 #include "hlt/direction.hpp"
@@ -14,31 +15,6 @@
 
 namespace bot
 {
-    struct MoveRequest
-    {
-        // Priority HIGH TO LOW
-        static constexpr int SHIP_ON_DROPOFF_PRIORITY = 100;   // Doit sortir du dropoff
-        static constexpr int URGENT_RETURN_NEAR_PRIORITY = 90; // URGENT, distance <= 2
-        static constexpr int URGENT_RETURN_PRIORITY = 80;      // URGENT, distance > 2
-        static constexpr int FLEE_PRIORITY = 60;               // Fuite danger
-        static constexpr int RETURN_PRIORITY = 50;             // Retour cargo
-        static constexpr int EXPLORE_PRIORITY = 20;            // Exploration
-        static constexpr int COLLECT_PRIORITY = 10;            // Collecte
-
-        hlt::EntityId m_ship_id;                    // ID du vaisseau
-        hlt::Position m_current;                    // Position actuelle
-        hlt::Position m_desired;                    // Position souhaitée
-        hlt::Direction m_desired_direction;         // Direction souhaitée
-        int m_priority;                             // Priorité de traitement
-        std::vector<hlt::Direction> m_alternatives; // Directions secondaires
-    };
-
-    struct MoveResult
-    {
-        hlt::EntityId m_ship_id;
-        hlt::Direction m_final_direction;
-    };
-
     /// Gestion de traffic (singleton)
     ///
     /// Etapes :

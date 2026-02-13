@@ -7,7 +7,7 @@ namespace bot
     float ShipFSM::transition_is_full(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
-        if (ctx->ship->halite >= hlt::constants::MAX_HALITE * HALITE_FILL_THRESHOLD)
+        if (ctx->ship->halite >= hlt::constants::MAX_HALITE * constants::HALITE_FILL_THRESHOLD)
             return 1.0f;
         return 0.0f;
     }
@@ -15,7 +15,7 @@ namespace bot
     float ShipFSM::transition_cell_has_halite(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
-        if (ctx->game_map->at(ctx->ship->position)->halite > hlt::constants::MAX_HALITE * HALITE_LOW_THRESHOLD)
+        if (ctx->game_map->at(ctx->ship->position)->halite > hlt::constants::MAX_HALITE * constants::HALITE_LOW_THRESHOLD)
             return 0.5f;
         return 0.0f;
     }
@@ -23,7 +23,7 @@ namespace bot
     float ShipFSM::transition_cell_empty(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
-        if (ctx->game_map->at(ctx->ship->position)->halite < hlt::constants::MAX_HALITE * HALITE_LOW_THRESHOLD)
+        if (ctx->game_map->at(ctx->ship->position)->halite < hlt::constants::MAX_HALITE * constants::HALITE_LOW_THRESHOLD)
             return 0.5f;
         return 0.0f;
     }
@@ -40,7 +40,7 @@ namespace bot
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
         int dist = ctx->game_map->calculate_distance(ctx->ship->position, ctx->depot_position);
-        if (ctx->turns_remaining < dist + SAFE_RETURN_TURNS)
+        if (ctx->turns_remaining < dist + constants::SAFE_RETURN_TURNS)
             return 2.0f; // Prioritaire
         return 0.0f;
     }

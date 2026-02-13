@@ -1,5 +1,7 @@
 #include "ship_states.hpp"
 #include "blackboard.hpp"
+#include "map_utils.hpp"
+#include "bot_constants.hpp"
 #include "hlt/game_map.hpp"
 #include "hlt/direction.hpp"
 
@@ -13,80 +15,22 @@ namespace bot
     MoveRequest ShipStateType::execute(std::shared_ptr<hlt::Ship> ship,
                                        hlt::GameMap &game_map, const hlt::Position &shipyard_position)
     {
-        // Alternatives : toutes les directions cardinales
         std::vector<hlt::Direction> alternatives(hlt::ALL_CARDINALS.begin(), hlt::ALL_CARDINALS.end());
         return MoveRequest{ship->id, ship->position, ship->position,
-                           hlt::Direction::STILL, MoveRequest::COLLECT_PRIORITY, alternatives};
+                           hlt::Direction::STILL, constants::COLLECT_PRIORITY, alternatives};
     }
 
-    // ── Navigation helper ────────────────────────────────────────
-    void ShipExploreState::navigate_toward_static(std::shared_ptr<hlt::Ship> ship,
-                                hlt::GameMap &game_map,
-                                const hlt::Position &destination,
-                                hlt::Direction &out_best_dir,
-                                std::vector<hlt::Direction> &out_alternatives)
+    // Helper local : appelle map_utils::navigate_toward avec les donnees du blackboard
+    static void navigate_with_blackboard(std::shared_ptr<hlt::Ship> ship,
+                                         hlt::GameMap &game_map,
+                                         const hlt::Position &destination,
+                                         hlt::Direction &out_best_dir,
+                                         std::vector<hlt::Direction> &out_alternatives)
     {
         const Blackboard &bb = Blackboard::get_instance();
-
-        // If already at destination, stay still
-        if (ship->position == destination)
-        {
-            out_best_dir = hlt::Direction::STILL;
-            out_alternatives.assign(hlt::ALL_CARDINALS.begin(), hlt::ALL_CARDINALS.end());
-            return;
-        }
-
-        // Directions optimales vers la destination
-        std::vector<hlt::Direction> unsafe_moves = game_map.get_unsafe_moves(ship->position, destination);
-
-        // Scorer toutes les directions cardinales
-        struct ScoredDir
-        {
-            hlt::Direction dir;
-            int distance;
-            bool is_stuck;
-            bool is_dangerous;
-            bool is_optimal;
-        };
-
-        std::vector<ScoredDir> scored;
-        for (const auto &dir : hlt::ALL_CARDINALS)
-        {
-            hlt::Position target = game_map.normalize(ship->position.directional_offset(dir));
-            int dist = game_map.calculate_distance(target, destination);
-            bool stuck = bb.is_position_stuck(target);
-            bool dangerous = !bb.is_position_safe(target);
-            bool optimal = false;
-
-            for (const auto &um : unsafe_moves)
-            {
-                if (um == dir)
-                {
-                    optimal = true;
-                    break;
-                }
-            }
-
-            scored.push_back({dir, dist, stuck, dangerous, optimal});
-        }
-
-        // Trier : non-stuck > non-dangerous > optimal > plus proche
-        std::sort(scored.begin(), scored.end(),
-                  [](const ScoredDir &a, const ScoredDir &b)
-                  {
-                      if (a.is_stuck != b.is_stuck)
-                          return !a.is_stuck;
-                      if (a.is_dangerous != b.is_dangerous)
-                          return !a.is_dangerous;
-                      if (a.is_optimal != b.is_optimal)
-                          return a.is_optimal;
-                      return a.distance < b.distance;
-                  });
-
-        out_best_dir = scored[0].dir;
-        out_alternatives.clear();
-        for (size_t i = 1; i < scored.size(); ++i)
-            out_alternatives.push_back(scored[i].dir);
+        map_utils::navigate_toward(ship, game_map, destination,
+                                   bb.stuck_positions, bb.danger_zones,
+                                   out_best_dir, out_alternatives);
     }
 
     // EXPLORE
@@ -103,7 +47,7 @@ namespace bot
             int dist = game_map.calculate_distance(ship->position, target);
 
             // Abandonner si arrive ou zone epuisee
-            if (dist == 0 || game_map.at(target)->halite < Blackboard::PERSISTENT_TARGET_MIN_HALITE)
+            if (dist == 0 || game_map.at(target)->halite < constants::PERSISTENT_TARGET_MIN_HALITE)
             {
                 bb.persistent_targets.erase(pt_it);
             }
@@ -114,11 +58,11 @@ namespace bot
 
                 hlt::Direction best_dir;
                 std::vector<hlt::Direction> alternatives;
-                navigate_toward_static(ship, game_map, target, best_dir, alternatives);
+                navigate_with_blackboard(ship, game_map, target, best_dir, alternatives);
 
                 hlt::Position desired = game_map.normalize(ship->position.directional_offset(best_dir));
                 return MoveRequest{ship->id, ship->position, desired,
-                                   best_dir, MoveRequest::EXPLORE_PRIORITY, alternatives};
+                                   best_dir, constants::EXPLORE_PRIORITY, alternatives};
             }
         }
 
@@ -133,11 +77,11 @@ namespace bot
 
             hlt::Direction best_dir;
             std::vector<hlt::Direction> alternatives;
-            navigate_toward_static(ship, game_map, target, best_dir, alternatives);
+            navigate_with_blackboard(ship, game_map, target, best_dir, alternatives);
 
             hlt::Position desired = game_map.normalize(ship->position.directional_offset(best_dir));
             return MoveRequest{ship->id, ship->position, desired,
-                               best_dir, MoveRequest::EXPLORE_PRIORITY, alternatives};
+                               best_dir, constants::EXPLORE_PRIORITY, alternatives};
         }
 
         // 3. Fallback : meilleure case adjacente
@@ -162,7 +106,7 @@ namespace bot
         {
             std::vector<hlt::Direction> alternatives(hlt::ALL_CARDINALS.begin(), hlt::ALL_CARDINALS.end());
             return MoveRequest{ship->id, ship->position, ship->position,
-                               hlt::Direction::STILL, MoveRequest::EXPLORE_PRIORITY, alternatives};
+                               hlt::Direction::STILL, constants::EXPLORE_PRIORITY, alternatives};
         }
 
         std::vector<std::pair<int, hlt::Direction>> scored_dirs;
@@ -183,7 +127,7 @@ namespace bot
             alternatives.push_back(sd.second);
 
         return MoveRequest{ship->id, ship->position, best_adj,
-                           best_direction, MoveRequest::EXPLORE_PRIORITY, alternatives};
+                           best_direction, constants::EXPLORE_PRIORITY, alternatives};
     }
 
     // COLLECT
@@ -210,7 +154,7 @@ namespace bot
             alternatives.push_back(sd.second);
 
         return MoveRequest{ship->id, ship->position, ship->position,
-                           hlt::Direction::STILL, MoveRequest::COLLECT_PRIORITY, alternatives};
+                           hlt::Direction::STILL, constants::COLLECT_PRIORITY, alternatives};
     }
 
     // RETURN
@@ -219,11 +163,11 @@ namespace bot
     {
         hlt::Direction best_dir;
         std::vector<hlt::Direction> alternatives;
-        ShipExploreState::navigate_toward_static(ship, game_map, shipyard_position, best_dir, alternatives);
+        navigate_with_blackboard(ship, game_map, shipyard_position, best_dir, alternatives);
 
         hlt::Position desired = game_map.normalize(ship->position.directional_offset(best_dir));
         return MoveRequest{ship->id, ship->position, desired,
-                           best_dir, MoveRequest::RETURN_PRIORITY, alternatives};
+                           best_dir, constants::RETURN_PRIORITY, alternatives};
     }
 
     // FLEE
@@ -263,7 +207,7 @@ namespace bot
         hlt::Position desired = game_map.normalize(ship->position.directional_offset(best_dir));
 
         return MoveRequest{ship->id, ship->position, desired,
-                           best_dir, MoveRequest::FLEE_PRIORITY, alternatives};
+                           best_dir, constants::FLEE_PRIORITY, alternatives};
     }
 
     // URGENT RETURN
@@ -272,10 +216,10 @@ namespace bot
     {
         hlt::Direction best_dir;
         std::vector<hlt::Direction> alternatives;
-        ShipExploreState::navigate_toward_static(ship, game_map, shipyard_position, best_dir, alternatives);
+        navigate_with_blackboard(ship, game_map, shipyard_position, best_dir, alternatives);
 
         hlt::Position desired = game_map.normalize(ship->position.directional_offset(best_dir));
         return MoveRequest{ship->id, ship->position, desired,
-                           best_dir, MoveRequest::URGENT_RETURN_PRIORITY, alternatives};
+                           best_dir, constants::URGENT_RETURN_PRIORITY, alternatives};
     }
 } // namespace bot
