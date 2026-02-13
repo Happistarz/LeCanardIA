@@ -57,17 +57,42 @@ namespace bot
                 bb.stuck_positions.insert(game_map->normalize(ship->position));
             }
         }
+
+        // Calcul de la heatmap pour le clustering
+        bb.compute_heatmap(*game_map);
+
+        // Marquer les positions ennemies comme danger zones
+        for (const auto &player : game.players)
+        {
+            if (player->id == game.my_id)
+                continue;
+            for (const auto &ship_pair : player->ships)
+            {
+                bb.danger_zones.insert(game_map->normalize(ship_pair.second->position));
+            }
+        }
+
+        // Pre-peupler targeted_cells avec les persistent_targets
+        // pour que find_best_explore_target les prenne en compte
+        for (const auto &pt : bb.persistent_targets)
+        {
+            bb.targeted_cells[pt.second] = pt.first;
+        }
     }
 
     // ── Nettoyage ───────────────────────────────────────────────
 
     void BotPlayer::cleanup_dead_ships()
     {
+        Blackboard &bb = Blackboard::get_instance();
         const auto &alive_ships = game.me->ships;
         for (auto it = ship_fsms.begin(); it != ship_fsms.end();)
         {
             if (alive_ships.find(it->first) == alive_ships.end())
+            {
+                bb.persistent_targets.erase(it->first);
                 it = ship_fsms.erase(it);
+            }
             else
                 ++it;
         }

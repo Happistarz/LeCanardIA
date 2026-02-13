@@ -2,7 +2,10 @@
 
 #include <set>
 #include <map>
+#include <vector>
 #include "hlt/position.hpp"
+
+namespace hlt { struct GameMap; }
 
 namespace bot
 {
@@ -51,6 +54,24 @@ namespace bot
         bool is_position_reserved(const hlt::Position &pos) const;              // Case occupée ?
         void reserve_position(const hlt::Position &pos, hlt::EntityId ship_id); // Reserver une case
         void clear_turn_data();                                                 // Reset des données temporaires
+
+        // ── Clustering / Heatmap ──────────────────────────────────
+        static constexpr int HEATMAP_RADIUS = 4;
+        static constexpr int EXPLORE_SEARCH_RADIUS = 10;
+        static constexpr int PERSISTENT_TARGET_MIN_HALITE = 50;
+
+        std::vector<std::vector<int>> halite_heatmap;
+
+        /// Targets persistants (survivent entre les tours, evite l'oscillation)
+        std::map<hlt::EntityId, hlt::Position> persistent_targets;
+
+        /// Calcule la heatmap de halite (somme ponderee dans un rayon)
+        void compute_heatmap(const hlt::GameMap &game_map);
+
+        /// Trouve la meilleure cible d'exploration pour un ship
+        hlt::Position find_best_explore_target(const hlt::GameMap &game_map,
+                                                const hlt::Position &ship_pos,
+                                                hlt::EntityId ship_id) const;
     };
 
 } // namespace bot
