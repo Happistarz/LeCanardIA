@@ -20,7 +20,7 @@ namespace bot
     }
 
     // ── Navigation helper ────────────────────────────────────────
-    static void navigate_toward(std::shared_ptr<hlt::Ship> ship,
+    void ShipExploreState::navigate_toward_static(std::shared_ptr<hlt::Ship> ship,
                                 hlt::GameMap &game_map,
                                 const hlt::Position &destination,
                                 hlt::Direction &out_best_dir,
@@ -114,7 +114,7 @@ namespace bot
 
                 hlt::Direction best_dir;
                 std::vector<hlt::Direction> alternatives;
-                navigate_toward(ship, game_map, target, best_dir, alternatives);
+                navigate_toward_static(ship, game_map, target, best_dir, alternatives);
 
                 hlt::Position desired = game_map.normalize(ship->position.directional_offset(best_dir));
                 return MoveRequest{ship->id, ship->position, desired,
@@ -133,7 +133,7 @@ namespace bot
 
             hlt::Direction best_dir;
             std::vector<hlt::Direction> alternatives;
-            navigate_toward(ship, game_map, target, best_dir, alternatives);
+            navigate_toward_static(ship, game_map, target, best_dir, alternatives);
 
             hlt::Position desired = game_map.normalize(ship->position.directional_offset(best_dir));
             return MoveRequest{ship->id, ship->position, desired,
@@ -219,7 +219,7 @@ namespace bot
     {
         hlt::Direction best_dir;
         std::vector<hlt::Direction> alternatives;
-        navigate_toward(ship, game_map, shipyard_position, best_dir, alternatives);
+        ShipExploreState::navigate_toward_static(ship, game_map, shipyard_position, best_dir, alternatives);
 
         hlt::Position desired = game_map.normalize(ship->position.directional_offset(best_dir));
         return MoveRequest{ship->id, ship->position, desired,
@@ -272,7 +272,7 @@ namespace bot
     {
         hlt::Direction best_dir;
         std::vector<hlt::Direction> alternatives;
-        navigate_toward(ship, game_map, shipyard_position, best_dir, alternatives);
+        ShipExploreState::navigate_toward_static(ship, game_map, shipyard_position, best_dir, alternatives);
 
         hlt::Position desired = game_map.normalize(ship->position.directional_offset(best_dir));
         return MoveRequest{ship->id, ship->position, desired,

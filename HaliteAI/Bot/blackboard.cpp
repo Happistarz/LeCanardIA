@@ -109,4 +109,46 @@ namespace bot
 
         return best_pos;
     }
+
+    hlt::Position Blackboard::find_best_dropoff_position(
+        const hlt::GameMap &game_map,
+        const std::vector<hlt::Position> &existing_depots,
+        int min_depot_distance) const
+    {
+        int w = game_map.width;
+        int h = game_map.height;
+        int best_score = -1;
+        hlt::Position best_pos(-1, -1);
+
+        for (int y = 0; y < h; ++y)
+        {
+            for (int x = 0; x < w; ++x)
+            {
+                hlt::Position candidate(x, y);
+
+                // Verifier la distance minimale a tous les depots existants
+                bool too_close = false;
+                for (const auto &depot : existing_depots)
+                {
+                    int dist = toroidal_distance(candidate, depot, w, h);
+                    if (dist < min_depot_distance)
+                    {
+                        too_close = true;
+                        break;
+                    }
+                }
+                if (too_close)
+                    continue;
+
+                int score = halite_heatmap[y][x];
+                if (score > best_score)
+                {
+                    best_score = score;
+                    best_pos = candidate;
+                }
+            }
+        }
+
+        return best_pos;
+    }
 } // namespace bot

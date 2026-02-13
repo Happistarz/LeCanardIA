@@ -60,6 +60,30 @@ namespace bot
         static constexpr int EXPLORE_SEARCH_RADIUS = 10;
         static constexpr int PERSISTENT_TARGET_MIN_HALITE = 50;
 
+        // ── Dropoff ─────────────────────────────────────────
+        static constexpr int MAX_DROPOFFS = 2;
+        static constexpr int MIN_SHIPS_FOR_DROPOFF = 5;
+        static constexpr int MIN_DROPOFF_DEPOT_DISTANCE_RATIO = 4; // map_size / ratio
+
+        /// Position persistante du futur dropoff (-1,-1 si aucun)
+        hlt::Position planned_dropoff_pos{-1, -1};
+        /// Ship assigne a la construction du dropoff (-1 si aucun)
+        hlt::EntityId dropoff_ship_id = -1;
+
+        /// Distance toroidale entre deux positions (evite d'appeler GameMap::calculate_distance qui est non-const)
+        static int toroidal_distance(const hlt::Position &a, const hlt::Position &b, int width, int height)
+        {
+            int dx = std::abs(a.x - b.x);
+            int dy = std::abs(a.y - b.y);
+            return std::min(dx, width - dx) + std::min(dy, height - dy);
+        }
+
+        /// Trouve la meilleure position pour un dropoff
+        hlt::Position find_best_dropoff_position(
+            const hlt::GameMap &game_map,
+            const std::vector<hlt::Position> &existing_depots,
+            int min_depot_distance) const;
+
         std::vector<std::vector<int>> halite_heatmap;
 
         /// Targets persistants (survivent entre les tours, evite l'oscillation)

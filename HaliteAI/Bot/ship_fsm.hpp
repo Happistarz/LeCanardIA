@@ -16,7 +16,7 @@ namespace bot
   {
     std::shared_ptr<hlt::Ship> ship;
     hlt::GameMap *game_map;
-    hlt::Position shipyard_position;
+    hlt::Position depot_position; // Dropoff ou shipyard le plus proche
     int turns_remaining;
     MoveRequest result_move_request;
   };
@@ -74,7 +74,7 @@ namespace bot
     ~ShipFSM();
 
     MoveRequest update(std::shared_ptr<hlt::Ship> ship,
-                        hlt::GameMap &game_map, const hlt::Position &shipyard_position,
+                        hlt::GameMap &game_map, const hlt::Position &depot_position,
                         int turns_remaining);
 
     hlt::EntityId get_ship_id() const { return m_ship_id; }

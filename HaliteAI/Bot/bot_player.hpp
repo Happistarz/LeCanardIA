@@ -18,6 +18,7 @@ namespace bot
     private:
         hlt::Game &game;
         std::unordered_map<hlt::EntityId, std::unique_ptr<ShipFSM>> ship_fsms;
+        hlt::EntityId m_converting_ship_id = -1; // Ship en cours de conversion en dropoff
 
         /// Met a jour le blackboard avec les donnees du tour (phase, halite moyen, stuck ships)
         void update_blackboard();
@@ -30,6 +31,12 @@ namespace bot
 
         /// Collecte les MoveRequests de tous les ships via leurs FSM
         std::vector<MoveRequest> collect_move_requests();
+
+        /// Retourne la position du depot (shipyard ou dropoff) le plus proche
+        hlt::Position closest_depot(const hlt::Position &pos) const;
+
+        /// Tente de construire un dropoff, retourne le command si oui
+        bool try_build_dropoff(std::vector<hlt::Command> &commands);
 
         /// Determine si on doit spawn un nouveau ship ce tour
         bool should_spawn(const std::vector<MoveRequest> &requests,

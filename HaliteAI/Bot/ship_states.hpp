@@ -16,6 +16,13 @@ namespace bot
     public:
         static MoveRequest execute(std::shared_ptr<hlt::Ship> ship,
                                     hlt::GameMap &game_map, const hlt::Position &shipyard_position);
+
+        /// Navigation helper accessible depuis l'exterieur (ex: dropoff routing)
+        static void navigate_toward_static(std::shared_ptr<hlt::Ship> ship,
+                                           hlt::GameMap &game_map,
+                                           const hlt::Position &destination,
+                                           hlt::Direction &out_best_dir,
+                                           std::vector<hlt::Direction> &out_alternatives);
     };
 
     class ShipCollectState : public ShipStateType
