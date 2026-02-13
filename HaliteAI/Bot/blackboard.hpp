@@ -9,10 +9,10 @@ namespace bot
 
     enum class GamePhase
     {
-        EARLY,  // Tours 1-100
-        MID,    // Tours 100-300
-        LATE,   // Tours 300-400
-        ENDGAME // Tours 400-500
+        EARLY,   // 0-25% des tours
+        MID,     // 25-60% des tours
+        LATE,    // 60-85% des tours
+        ENDGAME  // 85-100% des tours
     };
 
     struct Blackboard

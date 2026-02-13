@@ -8,17 +8,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O2 -Wall -Wno-unused-function -pedantic")
 
-include_directories(${CMAKE_SOURCE_DIR}/hlt)
-
-get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
-
-foreach(dir ${dirs})
-    file(GLOB_RECURSE SOURCE ${dir}/*.[ch]*)
-    set(SOURCE_FILES "${SOURCE_FILES}" ${SOURCE})
-endforeach()
-
 include_directories(${CMAKE_SOURCE_DIR})
-set(SOURCE_FILES "${SOURCE_FILES}" MyBot.cpp)
+
+file(GLOB_RECURSE HLT_SOURCE ${CMAKE_SOURCE_DIR}/hlt/*.[ch]*)
+file(GLOB_RECURSE BOT_SOURCE ${CMAKE_SOURCE_DIR}/HaliteAI/Bot/*.[ch]*)
+
+set(SOURCE_FILES ${HLT_SOURCE} ${BOT_SOURCE} MyBot.cpp)
 
 add_executable(MyBot ${SOURCE_FILES})
 
