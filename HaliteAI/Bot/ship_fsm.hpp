@@ -35,21 +35,30 @@ namespace bot
     FSM_STATE *m_state_return;
     FSM_STATE *m_state_urgent_return;
     FSM_STATE *m_state_flee;
+    FSM_STATE *m_state_hunt;
 
     // TRANSITIONS
     FSM_TRANSITION *m_trans_explore_to_return;
     FSM_TRANSITION *m_trans_explore_to_collect;
     FSM_TRANSITION *m_trans_explore_to_urgent;
+    FSM_TRANSITION *m_trans_explore_to_hunt;
+    FSM_TRANSITION *m_trans_explore_to_flee;
 
     FSM_TRANSITION *m_trans_collect_to_return;
     FSM_TRANSITION *m_trans_collect_to_explore;
     FSM_TRANSITION *m_trans_collect_to_urgent;
+    FSM_TRANSITION *m_trans_collect_to_hunt;
+    FSM_TRANSITION *m_trans_collect_to_flee;
 
     FSM_TRANSITION *m_trans_return_to_explore;
     FSM_TRANSITION *m_trans_return_to_urgent;
 
     FSM_TRANSITION *m_trans_flee_to_explore;
     FSM_TRANSITION *m_trans_flee_to_urgent;
+
+    FSM_TRANSITION *m_trans_hunt_to_explore;
+    FSM_TRANSITION *m_trans_hunt_to_urgent;
+    FSM_TRANSITION *m_trans_hunt_to_flee;
 
     // TRANSITION CALLBACKS
     static float transition_is_full(void *data);
@@ -58,12 +67,18 @@ namespace bot
     static float transition_at_shipyard(void *data);
     static float transition_urgent_return(void *data);
     static float transition_always(void *data);
+    static float transition_should_hunt(void *data);
+    static float transition_should_flee(void *data);
+    static float transition_no_hunt_target(void *data);
+    static float transition_no_threat(void *data);
 
     // BEHAVIOR CALLBACKS
     static void behavior_explore(void *data);
     static void behavior_collect(void *data);
     static void behavior_return(void *data);
     static void behavior_urgent_return(void *data);
+    static void behavior_flee(void *data);
+    static void behavior_hunt(void *data);
 
   public:
     explicit ShipFSM(hlt::EntityId ship_id);

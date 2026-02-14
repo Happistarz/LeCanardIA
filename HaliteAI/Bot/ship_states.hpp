@@ -43,6 +43,13 @@ namespace bot
                                     hlt::GameMap &game_map, const hlt::Position &shipyard_position);
     };
 
+    class ShipHuntState : public ShipStateType
+    {
+    public:
+        static MoveRequest execute(std::shared_ptr<hlt::Ship> ship,
+                                    hlt::GameMap &game_map, const hlt::Position &shipyard_position);
+    };
+
     class ShipUrgentReturnState : public ShipStateType
     {
     public:

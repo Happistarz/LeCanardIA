@@ -72,7 +72,9 @@ namespace bot
             // Ships ennemis
             for (const auto &ship_pair : player->ships)
             {
-                bb.danger_zones.insert(game_map->normalize(ship_pair.second->position));
+                hlt::Position norm_pos = game_map->normalize(ship_pair.second->position);
+                bb.danger_zones.insert(norm_pos);
+                bb.enemy_ships.push_back({ship_pair.first, norm_pos, ship_pair.second->halite});
             }
 
             // Shipyard ennemi (risque de spawn-kill)
@@ -104,6 +106,7 @@ namespace bot
             if (alive_ships.find(it->first) == alive_ships.end())
             {
                 bb.persistent_targets.erase(it->first);
+                bb.hunt_targets.erase(it->first);
                 it = ship_fsms.erase(it);
             }
             else

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bot_constants.hpp"
+#include "hlt/types.hpp"
 #include <set>
 #include <map>
 #include <vector>
@@ -17,6 +18,14 @@ namespace bot
         MID,     // 25-60% des tours
         LATE,    // 60-85% des tours
         ENDGAME  // 85-100% des tours
+    };
+
+    /// Informations d'un ship ennemi, reutilisable pour le combat et l'analyse
+    struct EnemyShipInfo
+    {
+        hlt::EntityId id;
+        hlt::Position position;
+        int halite;
     };
 
     struct Blackboard
@@ -43,6 +52,25 @@ namespace bot
 
         std::set<hlt::Position> danger_zones;    // Cases de position dangereuse
         std::set<hlt::Position> stuck_positions; // Cases occupées par des ships physiquement coincés
+
+        // ── Combat ────────────────────────────────────────────────
+
+        /// Tous les ships ennemis ce tour (peuple par update_blackboard)
+        std::vector<EnemyShipInfo> enemy_ships;
+
+        /// Cibles de chasse persistantes : my_ship_id → target_enemy_id
+        std::map<hlt::EntityId, hlt::EntityId> hunt_targets;
+
+        /// Trouve la meilleure cible de chasse pour un ship
+        /// Retourne la position de la cible ou (-1,-1) si aucune
+        hlt::Position find_hunt_target(const hlt::GameMap &game_map,
+                                        const hlt::Position &ship_pos,
+                                        hlt::EntityId ship_id);
+
+        /// Verifie si un ship ennemi menacant est a portee de flee
+        bool has_nearby_threat(const hlt::GameMap &game_map,
+                               const hlt::Position &ship_pos,
+                               int ship_halite) const;
 
         bool is_position_stuck(const hlt::Position &pos) const; // Case bloquée par un ship stuck ?
         GamePhase current_phase;                                // Phase actuelle

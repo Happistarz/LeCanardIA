@@ -41,12 +41,34 @@ namespace bot
         constexpr int URGENT_RETURN_PRIORITY = 80;
         /// Fuite danger
         constexpr int FLEE_PRIORITY = 60;
+        /// Chasse d'un enemy riche
+        constexpr int HUNT_PRIORITY = 55;
         /// Retour normal avec cargo
         constexpr int RETURN_PRIORITY = 50;
         /// Exploration
         constexpr int EXPLORE_PRIORITY = 20;
         /// Collecte (STILL)
         constexpr int COLLECT_PRIORITY = 10;
+
+        // ── Hunt ──────────────────────────────────────────────────
+        /// Rayon de detection d'un enemy riche a chasser
+        constexpr int HUNT_RADIUS = 6;
+        /// Rayon reduit en phase LATE
+        constexpr int HUNT_RADIUS_LATE = 3;
+        /// Halite max de notre ship pour pouvoir chasser (ship leger)
+        constexpr int HUNT_MAX_OWN_HALITE = 200;
+        /// Halite min de l'enemy pour valoir la peine
+        constexpr int HUNT_MIN_ENEMY_HALITE = 700;
+        /// Rayon de detection de defenders autour d'une cible
+        constexpr int HUNT_DEFENDER_RADIUS = 2;
+        /// Halite max d'un ship ennemi pour etre considere defender
+        constexpr int DEFENDER_MAX_HALITE = 200;
+
+        // ── Flee ──────────────────────────────────────────────────
+        /// Rayon de detection de menaces pour le flee
+        constexpr int FLEE_THREAT_RADIUS = 2;
+        /// Cargo minimum pour declencher le flee (on a quelque chose a perdre)
+        constexpr int FLEE_MIN_CARGO = 300;
 
     } // namespace constants
 } // namespace bot
