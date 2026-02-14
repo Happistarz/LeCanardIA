@@ -61,6 +61,15 @@ namespace bot
                 {
                     req.m_priority = constants::URGENT_RETURN_NEAR_PRIORITY;
                 }
+
+                // Moduler par cargo : ship plus charge = priorite plus haute
+                // Bonus de 0-9 proportionnel au halite porte
+                auto ship_it = m_ships->find(req.m_ship_id);
+                if (ship_it != m_ships->end())
+                {
+                    int cargo_bonus = (ship_it->second->halite * 9) / hlt::constants::MAX_HALITE;
+                    req.m_priority += cargo_bonus;
+                }
             }
         }
     }

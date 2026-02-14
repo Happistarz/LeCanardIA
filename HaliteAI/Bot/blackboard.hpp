@@ -4,6 +4,7 @@
 #include "hlt/types.hpp"
 #include <set>
 #include <map>
+#include <deque>
 #include <vector>
 #include "hlt/position.hpp"
 
@@ -52,6 +53,28 @@ namespace bot
 
         std::set<hlt::Position> danger_zones;    // Cases de position dangereuse
         std::set<hlt::Position> stuck_positions; // Cases occupées par des ships physiquement coincés
+
+        // ── Anti-oscillation ──────────────────────────────────────
+
+        /// Historique des 4 dernieres positions de chaque ship
+        std::map<hlt::EntityId, std::deque<hlt::Position>> position_history;
+
+        /// Ships actuellement en oscillation (pattern A→B→A→B)
+        std::set<hlt::EntityId> oscillating_ships;
+
+        /// Met a jour l'historique et detecte les oscillations
+        void update_position_history(hlt::EntityId ship_id, const hlt::Position &pos);
+
+        /// Retourne true si ce ship oscille
+        bool is_ship_oscillating(hlt::EntityId ship_id) const;
+
+        // ── Inspiration ───────────────────────────────────────────
+
+        /// Cases ou un ship serait inspire (>=2 ennemis dans INSPIRATION_RADIUS)
+        std::set<hlt::Position> inspired_zones;
+
+        /// Calcule les zones d'inspiration a partir des positions ennemies
+        void compute_inspired_zones(int map_width, int map_height);
 
         // ── Combat ────────────────────────────────────────────────
 

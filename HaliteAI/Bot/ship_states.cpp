@@ -21,6 +21,7 @@ namespace bot
     }
 
     // Helper local : appelle map_utils::navigate_toward avec les donnees du blackboard
+    // Gere aussi les ships en oscillation en forcant une rupture de pattern
     static void navigate_with_blackboard(std::shared_ptr<hlt::Ship> ship,
                                          hlt::GameMap &game_map,
                                          const hlt::Position &destination,
@@ -31,6 +32,28 @@ namespace bot
         map_utils::navigate_toward(ship, game_map, destination,
                                    bb.stuck_positions, bb.danger_zones,
                                    out_best_dir, out_alternatives);
+
+        // Si le ship oscille, forcer une direction alternative pour casser le pattern
+        if (bb.is_ship_oscillating(ship->id) && !out_alternatives.empty())
+        {
+            // Chercher une alternative perpendiculaire (pas la meme direction ni l'inverse)
+            for (size_t i = 0; i < out_alternatives.size(); ++i)
+            {
+                hlt::Position alt_pos = game_map.normalize(
+                    ship->position.directional_offset(out_alternatives[i]));
+                bool safe = bb.danger_zones.find(alt_pos) == bb.danger_zones.end();
+                bool not_stuck = bb.stuck_positions.find(alt_pos) == bb.stuck_positions.end();
+
+                if (safe && not_stuck)
+                {
+                    // Swap : l'alternative devient la direction principale
+                    hlt::Direction old_best = out_best_dir;
+                    out_best_dir = out_alternatives[i];
+                    out_alternatives[i] = old_best;
+                    break;
+                }
+            }
+        }
     }
 
     // EXPLORE
@@ -38,6 +61,12 @@ namespace bot
                                           hlt::GameMap &game_map, const hlt::Position &shipyard_position)
     {
         Blackboard &bb = Blackboard::get_instance();
+
+        // Si le ship oscille, abandonner sa cible pour forcer un nouveau chemin
+        if (bb.is_ship_oscillating(ship->id))
+        {
+            bb.persistent_targets.erase(ship->id);
+        }
 
         // 1. Verifier si on a deja un target persistant
         auto pt_it = bb.persistent_targets.find(ship->id);

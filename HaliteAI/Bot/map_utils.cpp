@@ -1,4 +1,5 @@
 #include "map_utils.hpp"
+#include "hlt/constants.hpp"
 
 namespace bot
 {
@@ -28,6 +29,7 @@ namespace bot
             {
                 hlt::Direction dir;
                 int distance;
+                int move_cost;
                 bool is_stuck;
                 bool is_dangerous;
                 bool is_optimal;
@@ -38,6 +40,7 @@ namespace bot
             {
                 hlt::Position target = game_map.normalize(ship->position.directional_offset(dir));
                 int dist = game_map.calculate_distance(target, destination);
+                int cost = game_map.at(target)->halite / hlt::constants::MOVE_COST_RATIO;
                 bool stuck = stuck_positions.find(target) != stuck_positions.end();
                 bool dangerous = danger_zones.find(target) != danger_zones.end();
                 bool optimal = false;
@@ -51,10 +54,10 @@ namespace bot
                     }
                 }
 
-                scored.push_back({dir, dist, stuck, dangerous, optimal});
+                scored.push_back({dir, dist, cost, stuck, dangerous, optimal});
             }
 
-            // Trier : non-stuck > non-dangerous > optimal > plus proche
+            // Trier : non-stuck > non-dangerous > optimal > plus proche > moins cher
             std::sort(scored.begin(), scored.end(),
                       [](const ScoredDir &a, const ScoredDir &b)
                       {
@@ -64,7 +67,9 @@ namespace bot
                               return !a.is_dangerous;
                           if (a.is_optimal != b.is_optimal)
                               return a.is_optimal;
-                          return a.distance < b.distance;
+                          if (a.distance != b.distance)
+                              return a.distance < b.distance;
+                          return a.move_cost < b.move_cost;
                       });
 
             out_best_dir = scored[0].dir;

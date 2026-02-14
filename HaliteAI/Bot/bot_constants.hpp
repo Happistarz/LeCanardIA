@@ -10,7 +10,8 @@ namespace bot
     {
         // ── Ship FSM ──────────────────────────────────────────────
         /// Marge de tours pour le retour urgent (distance + SAFE_RETURN_TURNS)
-        constexpr int SAFE_RETURN_TURNS = 15;
+        /// Inclut une marge pour les embouteillages au depot
+        constexpr int SAFE_RETURN_TURNS = 25;
         /// Seuil de remplissage pour declencher le retour (90% du MAX_HALITE)
         constexpr float HALITE_FILL_THRESHOLD = 0.9f;
         /// Seuil en dessous duquel une case est consideree vide (10% du MAX_HALITE)
@@ -23,6 +24,14 @@ namespace bot
         constexpr int EXPLORE_SEARCH_RADIUS = 10;
         /// Halite minimum pour qu'un persistent target reste valide
         constexpr int PERSISTENT_TARGET_MIN_HALITE = 50;
+
+        // ── Spawn ─────────────────────────────────────────────────
+        /// Tours minimum restants pour qu'un nouveau ship soit rentable
+        constexpr int SPAWN_MIN_TURNS_LEFT = 80;
+        /// Nombre maximum de ships (soft cap, adapte par map size)
+        constexpr int SPAWN_MAX_SHIPS_BASE = 25;
+        /// Halite moyen minimum sur la map pour continuer a spawner
+        constexpr int SPAWN_MIN_AVG_HALITE = 100;
 
         // ── Dropoff ───────────────────────────────────────────────
         /// Nombre maximum de dropoffs a construire

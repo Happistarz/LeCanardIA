@@ -93,6 +93,16 @@ namespace bot
         {
             bb.targeted_cells[pt.second] = pt.first;
         }
+
+        // Calculer les zones d'inspiration (bonus de minage x3 pres des ennemis)
+        bb.compute_inspired_zones(game_map->width, game_map->height);
+
+        // Mettre a jour l'historique de positions pour detecter les oscillations
+        for (const auto &ship_pair : me->ships)
+        {
+            bb.update_position_history(ship_pair.first,
+                                       game_map->normalize(ship_pair.second->position));
+        }
     }
 
     // ── Nettoyage ───────────────────────────────────────────────
@@ -107,6 +117,7 @@ namespace bot
             {
                 bb.persistent_targets.erase(it->first);
                 bb.hunt_targets.erase(it->first);
+                bb.position_history.erase(it->first);
                 it = ship_fsms.erase(it);
             }
             else
@@ -284,15 +295,16 @@ namespace bot
         if (best_pos.x < 0)
             return false;
 
-        // Trouver le ship le plus proche de cette position
+        // Trouver le ship le plus proche de cette position (max 20 cases)
         std::shared_ptr<hlt::Ship> best_ship = nullptr;
         int best_dist = 9999;
+        int max_assign_dist = game_map->width / 3; // ~21 sur 64x64
 
         for (const auto &ship_pair : me->ships)
         {
             const auto &ship = ship_pair.second;
             int d = game_map->calculate_distance(ship->position, best_pos);
-            if (d < best_dist)
+            if (d < best_dist && d <= max_assign_dist)
             {
                 best_dist = d;
                 best_ship = ship;
@@ -322,18 +334,33 @@ namespace bot
         const Blackboard &bb = Blackboard::get_instance();
         std::shared_ptr<hlt::Player> me = game.me;
         std::unique_ptr<hlt::GameMap> &game_map = game.game_map;
+        int turns_remaining = hlt::constants::MAX_TURNS - game.turn_number;
 
-        // Plus de spawn en fin de partie
+        // Plus de spawn en LATE / ENDGAME
         if (bb.current_phase == GamePhase::LATE ||
             bb.current_phase == GamePhase::ENDGAME)
+            return false;
+
+        // Un ship a besoin de ~80 tours pour faire aller-retour + miner + ROI
+        if (turns_remaining < constants::SPAWN_MIN_TURNS_LEFT)
             return false;
 
         // Pas assez de halite en banque
         if (me->halite < hlt::constants::SHIP_COST)
             return false;
 
-        // En MID-game, ne spawn que si la map a encore du halite
-        if (bb.current_phase == GamePhase::MID && bb.average_halite < 50)
+        // Reserver du halite pour un eventuel dropoff
+        if (bb.planned_dropoff_pos.x >= 0 && me->halite < hlt::constants::SHIP_COST + hlt::constants::DROPOFF_COST)
+            return false;
+
+        // Map trop epuisee
+        if (bb.average_halite < constants::SPAWN_MIN_AVG_HALITE)
+            return false;
+
+        // Soft cap de ships adapte a la taille de la map
+        // 64x64 → 25 ships max, 32x32 → ~12
+        int max_ships = constants::SPAWN_MAX_SHIPS_BASE * game_map->width / 64;
+        if (bb.total_ships_alive >= max_ships)
             return false;
 
         // Verifier si le shipyard sera occupe apres les moves

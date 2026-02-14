@@ -1,6 +1,7 @@
 #include "blackboard.hpp"
 #include "map_utils.hpp"
 #include "hlt/game_map.hpp"
+#include "hlt/constants.hpp"
 
 #include <cstdlib>
 
@@ -35,6 +36,8 @@ namespace bot
         danger_zones.clear();
         stuck_positions.clear();
         enemy_ships.clear();
+        inspired_zones.clear();
+        oscillating_ships.clear();
         should_spawn = false;
     }
 
@@ -99,6 +102,12 @@ namespace bot
 
                 // Score = heatmap / (distance + 1) pour favoriser les zones proches et riches
                 int heatmap_val = halite_heatmap[ny][nx];
+
+                // Bonus inspiration : un ship inspire mine 3x plus vite
+                // Augmenter le score des zones inspirees
+                if (inspired_zones.find(candidate) != inspired_zones.end())
+                    heatmap_val = heatmap_val * 3 / 2; // +50% de valeur percue
+
                 int effective_score = heatmap_val / (dist + 1);
 
                 if (effective_score > best_score)
@@ -152,6 +161,64 @@ namespace bot
         }
 
         return best_pos;
+    }
+
+    // ── Anti-oscillation ────────────────────────────────────────
+
+    void Blackboard::update_position_history(hlt::EntityId ship_id, const hlt::Position &pos)
+    {
+        auto &history = position_history[ship_id];
+        history.push_back(pos);
+        if (history.size() > 4)
+            history.pop_front();
+
+        // Detection du pattern A→B→A→B (4 positions, 2 distinctes alternees)
+        if (history.size() == 4)
+        {
+            if (history[0] == history[2] && history[1] == history[3] && !(history[0] == history[1]))
+            {
+                oscillating_ships.insert(ship_id);
+            }
+        }
+    }
+
+    bool Blackboard::is_ship_oscillating(hlt::EntityId ship_id) const
+    {
+        return oscillating_ships.find(ship_id) != oscillating_ships.end();
+    }
+
+    // ── Inspiration ─────────────────────────────────────────────
+
+    void Blackboard::compute_inspired_zones(int map_width, int map_height)
+    {
+        if (!hlt::constants::INSPIRATION_ENABLED)
+            return;
+
+        int radius = hlt::constants::INSPIRATION_RADIUS;
+        int needed = hlt::constants::INSPIRATION_SHIP_COUNT;
+
+        // Pour chaque case de la map, compter les ennemis dans le rayon
+        for (int y = 0; y < map_height; ++y)
+        {
+            for (int x = 0; x < map_width; ++x)
+            {
+                hlt::Position pos(x, y);
+                int count = 0;
+                for (const auto &enemy : enemy_ships)
+                {
+                    int dist = map_utils::toroidal_distance(pos, enemy.position, map_width, map_height);
+                    if (dist <= radius)
+                    {
+                        ++count;
+                        if (count >= needed)
+                        {
+                            inspired_zones.insert(pos);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // ── Combat ──────────────────────────────────────────────────
