@@ -8,8 +8,21 @@ namespace bot
     float ShipFSM::transition_is_full(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
+        // Classique : ship plein a 90%
         if (ctx->ship->halite >= hlt::constants::MAX_HALITE * constants::HALITE_FILL_THRESHOLD)
             return 1.0f;
+
+        // Si le rendement du trajet retour (cargo / dist) est meilleur que 2x le rendement moyen d'extraction par tour, return
+        const Blackboard &bb = Blackboard::get_instance();
+        int dist = ctx->game_map->calculate_distance(ctx->ship->position, ctx->drop_position);
+        if (dist > 0 && ctx->ship->halite > 0)
+        {
+            int halite_per_turn_returning = ctx->ship->halite / dist;
+            int avg_mining_yield = bb.average_halite / hlt::constants::EXTRACT_RATIO;
+
+            if (halite_per_turn_returning > avg_mining_yield * 2)
+                return 1.0f;
+        }
         return 0.0f;
     }
 
@@ -17,25 +30,63 @@ namespace bot
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
         int dist = ctx->game_map->calculate_distance(ctx->ship->position, ctx->drop_position);
+
         if (dist <= constants::SMART_RETURN_MAX_DIST &&
             ctx->ship->halite >= hlt::constants::MAX_HALITE * constants::SMART_RETURN_CARGO_RATIO)
             return 0.6f;
+
         return 0.0f;
     }
 
+    // Si la cell a du halite, c'est qu'elle n'est pas encore epuisee, on peut rester miner
     float ShipFSM::transition_cell_has_halite(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
-        if (ctx->game_map->at(ctx->ship->position)->halite > hlt::constants::MAX_HALITE * constants::HALITE_LOW_THRESHOLD)
+        const Blackboard &bb = Blackboard::get_instance();
+
+        int cell_halite = ctx->game_map->at(ctx->ship->position)->halite;
+        int extract_ratio = hlt::constants::EXTRACT_RATIO;
+        bool inspired = bb.inspired_zones.find(ctx->game_map->normalize(ctx->ship->position)) != bb.inspired_zones.end();
+
+        if (inspired)
+            extract_ratio = hlt::constants::INSPIRED_EXTRACT_RATIO;
+
+        // Marginal = halite qu'on extrairait ce tour (avec inspiration)
+        int marginal = cell_halite / extract_ratio;
+        if (inspired)
+            marginal += static_cast<int>(marginal * hlt::constants::INSPIRED_BONUS_MULTIPLIER);
+
+        // Rendement moyen par tour d'un trip complet (6 tours : aller, miner, retour)
+        int avg_yield = (bb.average_halite > 0 ? bb.average_halite : 1) / 6;
+
+        // Cell encore rentable, on peut rester
+        if (marginal > avg_yield)
             return 0.5f;
         return 0.0f;
     }
 
+    // Inverse de transition_cell_has_halite : cell epuisee, faut bouger
     float ShipFSM::transition_cell_empty(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
-        if (ctx->game_map->at(ctx->ship->position)->halite < hlt::constants::MAX_HALITE * constants::HALITE_LOW_THRESHOLD)
+        const Blackboard &bb = Blackboard::get_instance();
+        int cell_halite = ctx->game_map->at(ctx->ship->position)->halite;
+        int extract_ratio = hlt::constants::EXTRACT_RATIO;
+
+        bool inspired = bb.inspired_zones.find(ctx->game_map->normalize(ctx->ship->position)) != bb.inspired_zones.end();
+        if (inspired)
+            extract_ratio = hlt::constants::INSPIRED_EXTRACT_RATIO;
+
+        int marginal = cell_halite / extract_ratio;
+        if (inspired)
+            marginal += static_cast<int>(marginal * hlt::constants::INSPIRED_BONUS_MULTIPLIER);
+
+        int avg_yield = (bb.average_halite > 0 ? bb.average_halite : 1) / 6;
+
+        // Marginal trop faible, cell epuisee, faut partir
+        if (marginal < avg_yield)
             return 0.5f;
+
         return 0.0f;
     }
 
@@ -44,6 +95,7 @@ namespace bot
         auto *ctx = static_cast<ShipFSMContext *>(data);
         if (ctx->ship->position == ctx->drop_position)
             return 1.0f;
+
         return 0.0f;
     }
 
@@ -51,8 +103,10 @@ namespace bot
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
         int dist = ctx->game_map->calculate_distance(ctx->ship->position, ctx->drop_position);
+
         if (ctx->turns_remaining < dist + constants::SAFE_RETURN_TURNS)
             return 2.0f;
+
         return 0.0f;
     }
 
@@ -84,6 +138,7 @@ namespace bot
             if (enemy.halite >= constants::HUNT_MIN_ENEMY_HALITE)
             {
                 int dist = ctx->game_map->calculate_distance(ctx->ship->position, enemy.position);
+
                 if (dist <= search_radius)
                     return 0.8f;
             }
@@ -98,6 +153,7 @@ namespace bot
 
         if (bb.has_nearby_threat(*ctx->game_map, ctx->ship->position, ctx->ship->halite))
             return 1.2f;
+
         return 0.0f;
     }
 
@@ -127,6 +183,7 @@ namespace bot
 
         if (!bb.has_nearby_threat(*ctx->game_map, ctx->ship->position, ctx->ship->halite))
             return 0.5f;
+
         return 0.0f;
     }
 

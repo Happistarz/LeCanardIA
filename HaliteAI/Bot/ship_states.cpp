@@ -160,6 +160,7 @@ namespace bot
     }
 
     // COLLECT
+    // On compare le gain marginal d'extraction au rendement moyen par tour d'un trip complet
     MoveRequest ShipCollectState::execute(std::shared_ptr<hlt::Ship> ship,
                                           hlt::GameMap &game_map, const hlt::Position &shipyard_position)
     {
@@ -167,18 +168,34 @@ namespace bot
 
         int cell_halite = game_map.at(ship->position)->halite;
         bool inspired = bb.inspired_zones.find(game_map.normalize(ship->position)) != bb.inspired_zones.end();
-        int effective_halite = inspired ? cell_halite * 3 : cell_halite;
+        int extract_ratio = inspired ? hlt::constants::INSPIRED_EXTRACT_RATIO : hlt::constants::EXTRACT_RATIO;
 
-        if (effective_halite < hlt::constants::MAX_HALITE * constants::HALITE_LOW_THRESHOLD)
+        // Combien on va extraire CE tour (avec inspiration)
+        int marginal_extract = cell_halite / extract_ratio;
+        if (inspired)
+            marginal_extract += static_cast<int>(marginal_extract * hlt::constants::INSPIRED_BONUS_MULTIPLIER);
+
+        // Rendement moyen par tour d'un trip complet (6 tours : aller, miner, retour)
+        int avg_trip_halite = bb.average_halite > 0 ? bb.average_halite : 1;
+        int est_trip_turns = 6;
+        int avg_yield_per_turn = avg_trip_halite / est_trip_turns;
+
+        // Si l'extraction marginale est inferieure au rendement moyen par tour, il faut partir
+        bool should_leave = marginal_extract < avg_yield_per_turn;
+
+        if (should_leave)
         {
+            // Cell plus rentable, navigate vers le drop
             hlt::Direction best_dir;
             std::vector<hlt::Direction> alternatives;
             navigate_with_blackboard(ship, game_map, shipyard_position, best_dir, alternatives);
+
             hlt::Position desired = game_map.normalize(ship->position.directional_offset(best_dir));
             return MoveRequest{ship->id, ship->position, desired,
                                best_dir, constants::COLLECT_PRIORITY, alternatives};
         }
 
+        // Cell encore rentable, rester et scorer les alternatives pour le prochain tour
         std::vector<std::pair<int, hlt::Direction>> scored_dirs;
         for (const auto &direction : hlt::ALL_CARDINALS)
         {
@@ -211,7 +228,7 @@ namespace bot
                            best_dir, constants::RETURN_PRIORITY, alternatives};
     }
 
-    // FLEE — fuit vers le drop le plus proche en maximisant la distance aux menaces
+    // FLEE, fuit vers le drop le plus proche en maximisant la distance aux menaces
     MoveRequest ShipFleeState::execute(std::shared_ptr<hlt::Ship> ship,
                                        hlt::GameMap &game_map, const hlt::Position &shipyard_position)
     {
@@ -298,7 +315,7 @@ namespace bot
                            best_dir, constants::FLEE_PRIORITY, alternatives};
     }
 
-    // HUNT — ship leger qui chasse un enemy plein
+    // HUNT, ship leger qui chasse un enemy plein
     MoveRequest ShipHuntState::execute(std::shared_ptr<hlt::Ship> ship,
                                        hlt::GameMap &game_map, const hlt::Position &shipyard_position)
     {

@@ -114,7 +114,11 @@ namespace bot
                         heatmap_val = heatmap_val * 3 / 2;
                 }
 
-                int effective_score = heatmap_val / (dist + 1);
+                // Penalite pour la distance : favoriser les cells proches pour reduire le temps de voyage
+                int travel_cost = dist * (average_halite / (hlt::constants::MOVE_COST_RATIO > 0 ? hlt::constants::MOVE_COST_RATIO : 10));
+                int net_score = heatmap_val - travel_cost;
+                if (net_score < 0) net_score = 0;
+                int effective_score = net_score / (dist + 1);
 
                 if (effective_score > best_score)
                 {
@@ -143,7 +147,7 @@ namespace bot
             {
                 hlt::Position candidate(x, y);
 
-                // Verifier la distance minimale a tous les drops existants
+                // Verif la distance minimale a tous les drops existants
                 bool too_close = false;
                 for (const auto &depot : existing_depots)
                 {
