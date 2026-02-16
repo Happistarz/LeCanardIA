@@ -24,7 +24,7 @@ namespace bot
             // Directions optimales vers la destination
             std::vector<hlt::Direction> unsafe_moves = game_map.get_unsafe_moves(ship->position, destination);
 
-            // Scorer toutes les directions cardinales
+            // Scorer toutes les directions
             struct ScoredDir
             {
                 hlt::Direction dir;
@@ -57,7 +57,7 @@ namespace bot
                 scored.push_back({dir, dist, cost, stuck, dangerous, optimal});
             }
 
-            // Trier : non-stuck > non-dangerous > optimal > plus proche > moins cher
+            // Trier les directions : stuck > dangerous > optimal > distance > move cost
             std::sort(scored.begin(), scored.end(),
                       [](const ScoredDir &a, const ScoredDir &b)
                       {

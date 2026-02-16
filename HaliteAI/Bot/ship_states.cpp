@@ -20,8 +20,7 @@ namespace bot
                            hlt::Direction::STILL, constants::COLLECT_PRIORITY, alternatives};
     }
 
-    // Helper local : appelle map_utils::navigate_toward avec les donnees du blackboard
-    // Gere aussi les ships en oscillation en forcant une rupture de pattern
+    // Helper pour navigation avec prise en compte du blackboard
     static void navigate_with_blackboard(std::shared_ptr<hlt::Ship> ship,
                                          hlt::GameMap &game_map,
                                          const hlt::Position &destination,
@@ -36,7 +35,7 @@ namespace bot
         // Si le ship oscille, forcer une direction alternative pour casser le pattern
         if (bb.is_ship_oscillating(ship->id) && !out_alternatives.empty())
         {
-            // Chercher une alternative perpendiculaire (pas la meme direction ni l'inverse)
+            // Chercher une alternative safe
             for (size_t i = 0; i < out_alternatives.size(); ++i)
             {
                 hlt::Position alt_pos = game_map.normalize(
@@ -46,7 +45,7 @@ namespace bot
 
                 if (safe && not_stuck)
                 {
-                    // Swap : l'alternative devient la direction principale
+                    // Swap : best_dir devient alternative, et cette alternative devient best_dir
                     hlt::Direction old_best = out_best_dir;
                     out_best_dir = out_alternatives[i];
                     out_alternatives[i] = old_best;
@@ -62,21 +61,21 @@ namespace bot
     {
         Blackboard &bb = Blackboard::get_instance();
 
-        // Si le ship oscille, abandonner sa cible pour forcer un nouveau chemin
+        // Si le ship oscille, abandonner tout target persistant pour ce ship
         if (bb.is_ship_oscillating(ship->id))
         {
             bb.persistent_targets.erase(ship->id);
         }
 
-        // 1. Verifier si on a deja un target persistant
+        // Verif si on a deja un target persistant
         auto pt_it = bb.persistent_targets.find(ship->id);
         if (pt_it != bb.persistent_targets.end())
         {
             hlt::Position target = pt_it->second;
             int dist = game_map.calculate_distance(ship->position, target);
 
-            // Abandonner si arrive ou zone epuisee
-            if (dist == 0 || game_map.at(target)->halite < constants::PERSISTENT_TARGET_MIN_HALITE)
+            // Abandonner si arrive ou zone pauvre
+            if (dist == 0 || game_map.at(target)->halite < constants::TARGET_MIN_HALITE)
             {
                 bb.persistent_targets.erase(pt_it);
             }
@@ -95,12 +94,12 @@ namespace bot
             }
         }
 
-        // 2. Chercher une nouvelle cible via la heatmap
+        // Chercher une nouvelle target via la heatmap
         hlt::Position target = bb.find_best_explore_target(game_map, ship->position, ship->id);
 
         if (target != ship->position)
         {
-            // Persister la cible
+            // Assigner le target sur le blackboard pour les prochains tours
             bb.persistent_targets[ship->id] = target;
             bb.targeted_cells[target] = ship->id;
 
@@ -113,7 +112,7 @@ namespace bot
                                best_dir, constants::EXPLORE_PRIORITY, alternatives};
         }
 
-        // 3. Fallback : meilleure case adjacente
+        // Fallback : meilleure case adjacente
         int max_halite = -1;
         hlt::Direction best_direction = hlt::Direction::STILL;
         hlt::Position best_adj = ship->position;
@@ -199,13 +198,13 @@ namespace bot
                            best_dir, constants::RETURN_PRIORITY, alternatives};
     }
 
-    // FLEE — fuit vers le depot le plus proche en maximisant la distance aux menaces
+    // FLEE — fuit vers le drop le plus proche en maximisant la distance aux menaces
     MoveRequest ShipFleeState::execute(std::shared_ptr<hlt::Ship> ship,
                                        hlt::GameMap &game_map, const hlt::Position &shipyard_position)
     {
         const Blackboard &bb = Blackboard::get_instance();
 
-        // Collecter les menaces proches (ennemis plus legers que nous)
+        // Collecter les menaces proches
         std::vector<hlt::Position> threats;
         for (const auto &enemy : bb.enemy_ships)
         {
@@ -217,7 +216,7 @@ namespace bot
             }
         }
 
-        // Si plus de menace, naviguer normalement vers le depot
+        // Si plus de menace, naviguer normalement vers le drop
         if (threats.empty())
         {
             hlt::Direction best_dir;
@@ -233,13 +232,13 @@ namespace bot
         {
             hlt::Direction dir;
             int safety;    // Somme des distances aux menaces
-            int to_depot;  // Distance au depot (plus petit = mieux)
+            int to_drop;   // Distance au drop
             int cell_cost; // Cout de deplacement sur cette cell
         };
 
         std::vector<ScoredMove> moves;
 
-        // STILL : rester sur place (l'ennemi paye pour venir a nous)
+        // rester sur place
         {
             int safety = 0;
             for (const auto &t : threats)
@@ -260,19 +259,19 @@ namespace bot
             if (in_danger)
                 safety -= 100; // Grosse penalite si on fonce dans un ennemi
 
-            int to_depot = game_map.calculate_distance(target, shipyard_position);
+            int to_drop = game_map.calculate_distance(target, shipyard_position);
             int cell_cost = game_map.at(target)->halite / hlt::constants::MOVE_COST_RATIO;
 
-            moves.push_back({dir, safety, to_depot, cell_cost});
+            moves.push_back({dir, safety, to_drop, cell_cost});
         }
 
-        // Trier : maximiser safety, puis minimiser distance au depot
+        // Trier : maximiser safety, puis minimiser distance au drop
         std::sort(moves.begin(), moves.end(),
                   [](const ScoredMove &a, const ScoredMove &b)
                   {
                       if (a.safety != b.safety)
                           return a.safety > b.safety;
-                      return a.to_depot < b.to_depot;
+                      return a.to_drop < b.to_drop;
                   });
 
         hlt::Direction best_dir = moves[0].dir;
@@ -286,7 +285,7 @@ namespace bot
                            best_dir, constants::FLEE_PRIORITY, alternatives};
     }
 
-    // HUNT — ship leger qui pourchasse un enemy riche
+    // HUNT — ship leger qui chasse un enemy plein
     MoveRequest ShipHuntState::execute(std::shared_ptr<hlt::Ship> ship,
                                        hlt::GameMap &game_map, const hlt::Position &shipyard_position)
     {
@@ -294,14 +293,13 @@ namespace bot
 
         hlt::Position target = bb.find_hunt_target(game_map, ship->position, ship->id);
 
-        // Pas de cible valide → fallback explore
+        // Pas de target valide -> return to explore
         if (target.x < 0)
         {
             return ShipExploreState::execute(ship, game_map, shipyard_position);
         }
 
-        // Naviguer vers la cible en evitant les defenders mais PAS la cible elle-meme
-        // Creer un set de dangers sans la position de la cible
+        // Marquer la cell cible comme targeted pour éviter les conflits de chasse
         std::set<hlt::Position> hunt_dangers = bb.danger_zones;
         hunt_dangers.erase(target);
 

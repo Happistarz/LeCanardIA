@@ -20,14 +20,14 @@ namespace bot
         int turns_remaining)
     {
         m_game_map = &game_map;
-        m_dropoff_positions = &dropoff_positions;
+        m_drops_positions = &dropoff_positions;
         m_ships = &ships;
         m_turns_remaining = turns_remaining;
     }
 
-    bool TrafficManager::is_dropoff(const hlt::Position &pos) const
+    bool TrafficManager::is_drop_cell(const hlt::Position &pos) const
     {
-        for (const auto &dp : *m_dropoff_positions)
+        for (const auto &dp : *m_drops_positions)
         {
             if (pos == dp)
                 return true;
@@ -40,7 +40,7 @@ namespace bot
         for (auto &req : requests)
         {
             // Ship sur un dropoff, HIGH PRIORITY
-            if (is_dropoff(m_game_map->normalize(req.m_current)))
+            if (is_drop_cell(m_game_map->normalize(req.m_current)))
             {
                 req.m_priority = constants::SHIP_ON_DROPOFF_PRIORITY;
             }
@@ -49,7 +49,7 @@ namespace bot
             {
                 // Chercher le dropoff le plus proche
                 int min_dist = 9999;
-                for (const auto &dp : *m_dropoff_positions)
+                for (const auto &dp : *m_drops_positions)
                 {
                     int d = m_game_map->calculate_distance(req.m_current, dp);
                     if (d < min_dist)
@@ -62,8 +62,7 @@ namespace bot
                     req.m_priority = constants::URGENT_RETURN_NEAR_PRIORITY;
                 }
 
-                // Moduler par cargo : ship plus charge = priorite plus haute
-                // Bonus de 0-9 proportionnel au halite porte
+                // Bonus de priorité pour les ships avec beaucoup de halite, pour les faire rentrer plus vite
                 auto ship_it = m_ships->find(req.m_ship_id);
                 if (ship_it != m_ships->end())
                 {
@@ -79,7 +78,7 @@ namespace bot
         std::vector<MoveResult> &results,
         std::unordered_set<size_t> &resolved_indices)
     {
-        // Index des positions actuelles pour détecter les conflits
+        // Map de position normalisée -> indice du MoveRequest qui veut aller sur cette position
         std::unordered_map<hlt::Position, size_t> pos_to_index;
         for (size_t i = 0; i < requests.size(); ++i)
         {
@@ -87,7 +86,6 @@ namespace bot
             pos_to_index[normalized] = i;
         }
 
-        // Pour chaque MoveRequest
         for (size_t i = 0; i < requests.size(); ++i)
         {
             if (resolved_indices.count(i))
@@ -136,12 +134,12 @@ namespace bot
         // Ajuste les PRIORITY des MoveRequest
         adjust_priorities(requests);
 
-        // Tri des indices par PRIORITY décroissante
+        // Trie des indices par PRIORITY décroissante
         std::vector<size_t> sorted_indices(requests.size());
         for (size_t i = 0; i < requests.size(); ++i)
             sorted_indices[i] = i;
 
-        // Tri par PRIORITY décroissante
+        // Trie par PRIORITY décroissante
         std::sort(sorted_indices.begin(), sorted_indices.end(),
                   [&requests](size_t a, size_t b)
                   {
@@ -180,8 +178,8 @@ namespace bot
             MoveRequest &req = requests[idx];
             hlt::Position desired_pos = m_game_map->normalize(req.m_desired);
 
-            // ENDGAME CASE : Autoriser les collisions sur dropoff
-            bool on_dropoff_collision_ok = (m_turns_remaining <= 2) && is_dropoff(desired_pos);
+            // ENDGAME CASE : Autoriser les collisions sur les drops
+            bool on_dropoff_collision_ok = (m_turns_remaining <= 2) && is_drop_cell(desired_pos);
 
             // Desired direction
             if (occupied_positions.find(desired_pos) == occupied_positions.end() || on_dropoff_collision_ok)

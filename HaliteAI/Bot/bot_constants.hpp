@@ -1,82 +1,84 @@
 #pragma once
 
-/// Constantes centralisees du bot.
-/// Fichier reutilisable : aucune dependance au moteur de jeu (hlt/).
-/// Modifier les valeurs ici impacte tout le bot de maniere coherente.
-
 namespace bot
 {
     namespace constants
     {
-        // ── Ship FSM ──────────────────────────────────────────────
-        /// Marge de tours pour le retour urgent (distance + SAFE_RETURN_TURNS)
-        /// Inclut une marge pour les embouteillages au depot
+        // SHIP FSM
+
+        /// Marge de turns pour le return des ships, + marge pour le trafic
         constexpr int SAFE_RETURN_TURNS = 25;
-        /// Seuil de remplissage pour declencher le retour (90% du MAX_HALITE)
+        /// Seuil max du cargo, 90% du MAX_HALITE
         constexpr float HALITE_FILL_THRESHOLD = 0.9f;
-        /// Seuil en dessous duquel une case est consideree vide (10% du MAX_HALITE)
+        /// Seuil en min pour ne pas la considerer comme cell vide
         constexpr float HALITE_LOW_THRESHOLD = 0.1f;
 
-        // ── Heatmap / Exploration ─────────────────────────────────
-        /// Rayon de la heatmap (somme ponderee de halite autour de chaque case)
-        constexpr int HEATMAP_RADIUS = 4;
-        /// Rayon de recherche de cible d'exploration
-        constexpr int EXPLORE_SEARCH_RADIUS = 10;
-        /// Halite minimum pour qu'un persistent target reste valide
-        constexpr int PERSISTENT_TARGET_MIN_HALITE = 50;
+        // HEATMAP / EXPLORE
 
-        // ── Spawn ─────────────────────────────────────────────────
-        /// Tours minimum restants pour qu'un nouveau ship soit rentable
+        /// Rayon de la heatmap
+        constexpr int HEATMAP_RADIUS = 4;
+        /// Rayon de recherche pour l'explore
+        constexpr int EXPLORE_SEARCH_RADIUS = 10;
+        /// Halite min pour qu'un target reste valide
+        constexpr int TARGET_MIN_HALITE = 50;
+
+        // SPAWN
+
+        /// Turns min restants pour qu'un nouveau ship soit rentable
         constexpr int SPAWN_MIN_TURNS_LEFT = 80;
-        /// Nombre maximum de ships (soft cap, adapte par map size)
+        /// Nombre max de ships (adaptable selon la taille de la map)
         constexpr int SPAWN_MAX_SHIPS_BASE = 25;
-        /// Halite moyen minimum sur la map pour continuer a spawner
+        /// Halite moyen min sur la map pour continuer a spawner
         constexpr int SPAWN_MIN_AVG_HALITE = 100;
 
-        // ── Dropoff ───────────────────────────────────────────────
-        /// Nombre maximum de dropoffs a construire
+        // DROPOFF
+
+        /// Nombre max de dropoffs
         constexpr int MAX_DROPOFFS = 2;
-        /// Nombre minimum de ships avant de planifier un dropoff
+        /// Nombre min de ships avant de planifier un dropoff
         constexpr int MIN_SHIPS_FOR_DROPOFF = 5;
-        /// Ratio pour la distance minimale entre depots (map_size / ratio)
+        /// Ratio distance depot / distance spawn pour considerer un dropoff rentable
         constexpr int MIN_DROPOFF_DEPOT_DISTANCE_RATIO = 4;
 
-        // ── MoveRequest Priority Levels ───────────────────────────
+        // MOVE REQUEST PRIORITY LEVELS
+
         /// Ship sur un dropoff, doit sortir
         constexpr int SHIP_ON_DROPOFF_PRIORITY = 100;
         /// Retour urgent, distance <= 2 du depot
         constexpr int URGENT_RETURN_NEAR_PRIORITY = 90;
         /// Retour urgent, distance > 2
         constexpr int URGENT_RETURN_PRIORITY = 80;
-        /// Fuite danger
+        /// Fuite du danger
         constexpr int FLEE_PRIORITY = 60;
-        /// Chasse d'un enemy riche
+        /// Chasse d'un enemy plein
         constexpr int HUNT_PRIORITY = 55;
         /// Retour normal avec cargo
         constexpr int RETURN_PRIORITY = 50;
         /// Exploration
         constexpr int EXPLORE_PRIORITY = 20;
-        /// Collecte (STILL)
+        /// Collecte
         constexpr int COLLECT_PRIORITY = 10;
 
-        // ── Hunt ──────────────────────────────────────────────────
-        /// Rayon de detection d'un enemy riche a chasser
+        // HUNT
+
+        /// Rayon de detection d'un enemy plein a chasser
         constexpr int HUNT_RADIUS = 6;
         /// Rayon reduit en phase LATE
         constexpr int HUNT_RADIUS_LATE = 3;
-        /// Halite max de notre ship pour pouvoir chasser (ship leger)
+        /// Halite max de notre ship pour pouvoir chasser (HIGH CARGO -> NO RISK)
         constexpr int HUNT_MAX_OWN_HALITE = 200;
-        /// Halite min de l'enemy pour valoir la peine
+        /// Halite min de l'enemy pour etre considere comme target de chasse
         constexpr int HUNT_MIN_ENEMY_HALITE = 700;
-        /// Rayon de detection de defenders autour d'une cible
+        /// Rayon de detection de defenders autour de la target
         constexpr int HUNT_DEFENDER_RADIUS = 2;
         /// Halite max d'un ship ennemi pour etre considere defender
         constexpr int DEFENDER_MAX_HALITE = 200;
 
-        // ── Flee ──────────────────────────────────────────────────
+        // FLEE
+
         /// Rayon de detection de menaces pour le flee
         constexpr int FLEE_THREAT_RADIUS = 2;
-        /// Cargo minimum pour declencher le flee (on a quelque chose a perdre)
+        /// Cargo min pour declencher le flee (LOW CARGO -> NO RISK)
         constexpr int FLEE_MIN_CARGO = 300;
 
     } // namespace constants

@@ -15,15 +15,6 @@
 
 namespace bot
 {
-    /// Gestion de traffic (singleton)
-    ///
-    /// Etapes :
-    /// - init() chaque tour avec les données du jeu
-    /// - Collecte les MoveRequest de chaque ShipFSM
-    /// - Ajuste les PRIORITY
-    /// - Tri par PRIORITY HIGH TO LOW
-    /// - Résout les conflits de mouvement (swaps, collisions)
-    /// - MoveResult final pour chaque ship
     class TrafficManager
     {
     public:
@@ -35,7 +26,7 @@ namespace bot
 
         /// Initialise le contexte du tour courant
         void init(hlt::GameMap &game_map,
-                  const std::vector<hlt::Position> &dropoff_positions,
+                  const std::vector<hlt::Position> &drops_positions,
                   const std::unordered_map<hlt::EntityId, std::shared_ptr<hlt::Ship>> &ships,
                   int turns_remaining);
 
@@ -45,24 +36,28 @@ namespace bot
     private:
         TrafficManager() = default;
 
-        bool is_dropoff(const hlt::Position &pos) const;
+        /// Verif si une position est un drop
+        bool is_drop_cell(const hlt::Position &pos) const;
 
+        // Ajuste les priorités des MoveRequests selon la situation
         void adjust_priorities(std::vector<MoveRequest> &requests);
 
+        // Résout les conflits de mouvement en fonction des priorités
         void resolve_conflicts(
             std::vector<MoveRequest> &requests,
             std::vector<MoveResult> &results,
             std::unordered_set<size_t> &resolved_indices);
 
+        // Forcer le STILL des ships qui n'ont pas assez de halite pour bouger
         void manage_stuck_ships(
             std::vector<MoveRequest> &requests,
             std::vector<MoveResult> &results,
             std::unordered_set<size_t> &resolved_indices,
             std::unordered_set<hlt::Position> &occupied_positions);
 
-        // Contexte du tour courant (set par init())
+        // Contexte du tour
         hlt::GameMap *m_game_map = nullptr;
-        const std::vector<hlt::Position> *m_dropoff_positions = nullptr;
+        const std::vector<hlt::Position> *m_drops_positions = nullptr;
         const std::unordered_map<hlt::EntityId, std::shared_ptr<hlt::Ship>> *m_ships = nullptr;
         int m_turns_remaining = 0;
     };

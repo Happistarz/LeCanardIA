@@ -1,9 +1,5 @@
 #pragma once
 
-/// Utilitaires de navigation et de carte reutilisables.
-/// Independant du Blackboard et de la FSM : peut etre reutilise
-/// dans tout projet utilisant un systeme de grille toroidale.
-
 #include "hlt/position.hpp"
 #include "hlt/direction.hpp"
 #include "hlt/game_map.hpp"
@@ -19,8 +15,7 @@ namespace bot
 {
     namespace map_utils
     {
-        /// Distance de Manhattan sur une grille toroidale.
-        /// Ne depend d'aucun etat mutable, peut etre appelee n'importe ou.
+        /// Calcule la distance toroidale entre deux positions
         inline int toroidal_distance(const hlt::Position &a, const hlt::Position &b,
                                      int width, int height)
         {
@@ -29,17 +24,7 @@ namespace bot
             return std::min(dx, width - dx) + std::min(dy, height - dy);
         }
 
-        /// Navigation intelligente vers une destination.
-        /// Prend en compte les cases bloquees et dangereuses via des sets injectés.
-        /// Retourne la meilleure direction et une liste d'alternatives triees.
-        ///
-        /// @param ship            Le vaisseau a deplacer
-        /// @param game_map        La carte du jeu
-        /// @param destination     Position cible
-        /// @param stuck_positions Cases occupees par des ships physiquement coinces
-        /// @param danger_zones    Cases dangereuses (ennemis, structures ennemies)
-        /// @param out_best_dir    [out] Meilleure direction calculee
-        /// @param out_alternatives [out] Directions alternatives triees par qualite
+        /// Navigue selon plusieurs criteres
         void navigate_toward(std::shared_ptr<hlt::Ship> ship,
                              hlt::GameMap &game_map,
                              const hlt::Position &destination,

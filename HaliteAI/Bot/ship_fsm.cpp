@@ -32,7 +32,7 @@ namespace bot
     float ShipFSM::transition_at_shipyard(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
-        if (ctx->ship->position == ctx->depot_position)
+        if (ctx->ship->position == ctx->drop_position)
             return 1.0f;
         return 0.0f;
     }
@@ -40,7 +40,7 @@ namespace bot
     float ShipFSM::transition_urgent_return(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
-        int dist = ctx->game_map->calculate_distance(ctx->ship->position, ctx->depot_position);
+        int dist = ctx->game_map->calculate_distance(ctx->ship->position, ctx->drop_position);
         if (ctx->turns_remaining < dist + constants::SAFE_RETURN_TURNS)
             return 2.0f;
         return 0.0f;
@@ -68,7 +68,7 @@ namespace bot
                                 ? constants::HUNT_RADIUS_LATE
                                 : constants::HUNT_RADIUS;
 
-        // Chercher un enemy riche a portee
+        // Chercher un enemy plein a portee
         for (const auto &enemy : bb.enemy_ships)
         {
             if (enemy.halite >= constants::HUNT_MIN_ENEMY_HALITE)
@@ -96,18 +96,18 @@ namespace bot
         auto *ctx = static_cast<ShipFSMContext *>(data);
         const Blackboard &bb = Blackboard::get_instance();
 
-        // Plus de cible valide → retour a explore
+        // Si plus de target valide, return to explore
         auto ht_it = bb.hunt_targets.find(ctx->ship->id);
         if (ht_it == bb.hunt_targets.end())
             return 0.5f;
 
-        // Verifier si la cible existe encore et est toujours riche
+        // Verif si la target existe encore et est toujours plein
         for (const auto &enemy : bb.enemy_ships)
         {
             if (enemy.id == ht_it->second && enemy.halite >= constants::HUNT_MIN_ENEMY_HALITE / 2)
-                return 0.0f; // Cible encore valide
+                return 0.0f; // target encore valide
         }
-        return 0.5f; // Cible perdue
+        return 0.5f; // target perdue
     }
 
     float ShipFSM::transition_no_threat(void *data)
@@ -123,37 +123,37 @@ namespace bot
     void ShipFSM::behavior_explore(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
-        ctx->result_move_request = ShipExploreState::execute(ctx->ship, *ctx->game_map, ctx->depot_position);
+        ctx->result_move_request = ShipExploreState::execute(ctx->ship, *ctx->game_map, ctx->drop_position);
     }
 
     void ShipFSM::behavior_collect(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
-        ctx->result_move_request = ShipCollectState::execute(ctx->ship, *ctx->game_map, ctx->depot_position);
+        ctx->result_move_request = ShipCollectState::execute(ctx->ship, *ctx->game_map, ctx->drop_position);
     }
 
     void ShipFSM::behavior_return(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
-        ctx->result_move_request = ShipReturnState::execute(ctx->ship, *ctx->game_map, ctx->depot_position);
+        ctx->result_move_request = ShipReturnState::execute(ctx->ship, *ctx->game_map, ctx->drop_position);
     }
 
     void ShipFSM::behavior_urgent_return(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
-        ctx->result_move_request = ShipUrgentReturnState::execute(ctx->ship, *ctx->game_map, ctx->depot_position);
+        ctx->result_move_request = ShipUrgentReturnState::execute(ctx->ship, *ctx->game_map, ctx->drop_position);
     }
 
     void ShipFSM::behavior_flee(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
-        ctx->result_move_request = ShipFleeState::execute(ctx->ship, *ctx->game_map, ctx->depot_position);
+        ctx->result_move_request = ShipFleeState::execute(ctx->ship, *ctx->game_map, ctx->drop_position);
     }
 
     void ShipFSM::behavior_hunt(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
-        ctx->result_move_request = ShipHuntState::execute(ctx->ship, *ctx->game_map, ctx->depot_position);
+        ctx->result_move_request = ShipHuntState::execute(ctx->ship, *ctx->game_map, ctx->drop_position);
     }
 
     ShipFSM::ShipFSM(hlt::EntityId ship_id)
@@ -166,34 +166,34 @@ namespace bot
         m_state_flee = new FSM_STATE(&ShipFSM::behavior_flee);
         m_state_hunt = new FSM_STATE(&ShipFSM::behavior_hunt);
 
-        // ── Transitions depuis EXPLORE ──
+        // Transitions depuis EXPLORE
         m_trans_explore_to_urgent = new FSM_TRANSITION(&ShipFSM::transition_urgent_return, m_state_urgent_return);
         m_trans_explore_to_flee = new FSM_TRANSITION(&ShipFSM::transition_should_flee, m_state_flee);
         m_trans_explore_to_return = new FSM_TRANSITION(&ShipFSM::transition_is_full, m_state_return);
         m_trans_explore_to_hunt = new FSM_TRANSITION(&ShipFSM::transition_should_hunt, m_state_hunt);
         m_trans_explore_to_collect = new FSM_TRANSITION(&ShipFSM::transition_cell_has_halite, m_state_collect);
 
-        // ── Transitions depuis COLLECT ──
+        // Transitions depuis COLLECT
         m_trans_collect_to_urgent = new FSM_TRANSITION(&ShipFSM::transition_urgent_return, m_state_urgent_return);
         m_trans_collect_to_flee = new FSM_TRANSITION(&ShipFSM::transition_should_flee, m_state_flee);
         m_trans_collect_to_return = new FSM_TRANSITION(&ShipFSM::transition_is_full, m_state_return);
         m_trans_collect_to_hunt = new FSM_TRANSITION(&ShipFSM::transition_should_hunt, m_state_hunt);
         m_trans_collect_to_explore = new FSM_TRANSITION(&ShipFSM::transition_cell_empty, m_state_explore);
 
-        // ── Transitions depuis RETURN ──
+        // Transitions depuis RETURN
         m_trans_return_to_urgent = new FSM_TRANSITION(&ShipFSM::transition_urgent_return, m_state_urgent_return);
         m_trans_return_to_explore = new FSM_TRANSITION(&ShipFSM::transition_at_shipyard, m_state_explore);
 
-        // ── Transitions depuis FLEE ──
+        // Transitions depuis FLEE
         m_trans_flee_to_urgent = new FSM_TRANSITION(&ShipFSM::transition_urgent_return, m_state_urgent_return);
         m_trans_flee_to_explore = new FSM_TRANSITION(&ShipFSM::transition_no_threat, m_state_explore);
 
-        // ── Transitions depuis HUNT ──
+        // Transitions depuis HUNT
         m_trans_hunt_to_urgent = new FSM_TRANSITION(&ShipFSM::transition_urgent_return, m_state_urgent_return);
         m_trans_hunt_to_flee = new FSM_TRANSITION(&ShipFSM::transition_should_flee, m_state_flee);
         m_trans_hunt_to_explore = new FSM_TRANSITION(&ShipFSM::transition_no_hunt_target, m_state_explore);
 
-        // ── Wiring des transitions par état ──
+        // Initialisation des transitions dans les etats
         m_state_explore->InitTransitions(5,
                                          m_trans_explore_to_urgent,
                                          m_trans_explore_to_flee,
@@ -273,7 +273,7 @@ namespace bot
         ShipFSMContext context;
         context.ship = ship;
         context.game_map = &game_map;
-        context.depot_position = depot_position;
+        context.drop_position = depot_position;
         context.turns_remaining = turns_remaining;
         context.result_move_request = MoveRequest{};
 

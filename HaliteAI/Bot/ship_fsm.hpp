@@ -17,7 +17,7 @@ namespace bot
   {
     std::shared_ptr<hlt::Ship> ship;
     hlt::GameMap *game_map;
-    hlt::Position depot_position; // Dropoff ou shipyard le plus proche
+    hlt::Position drop_position; // Dropoff ou shipyard le plus proche
     int turns_remaining;
     MoveRequest result_move_request;
   };

@@ -63,7 +63,7 @@ namespace bot
                         int nx = ((x + dx) % w + w) % w;
                         int ny = ((y + dy) % h + h) % h;
 
-                        // Ponderation : les cases proches comptent plus
+                        // Ponderation : les cells proches comptent plus
                         int weight = constants::HEATMAP_RADIUS + 1 - dist;
                         score += game_map.cells[ny][nx].halite * weight;
                     }
@@ -95,7 +95,7 @@ namespace bot
                 int ny = ((ship_pos.y + dy) % h + h) % h;
                 hlt::Position candidate(nx, ny);
 
-                // Ignorer les cases deja ciblees par un autre ship
+                // Skip les cells deja target par un autre ship
                 auto it = targeted_cells.find(candidate);
                 if (it != targeted_cells.end() && it->second != ship_id)
                     continue;
@@ -103,10 +103,9 @@ namespace bot
                 // Score = heatmap / (distance + 1) pour favoriser les zones proches et riches
                 int heatmap_val = halite_heatmap[ny][nx];
 
-                // Bonus inspiration : un ship inspire mine 3x plus vite
                 // Augmenter le score des zones inspirees
                 if (inspired_zones.find(candidate) != inspired_zones.end())
-                    heatmap_val = heatmap_val * 3 / 2; // +50% de valeur percue
+                    heatmap_val = heatmap_val * 3 / 2;
 
                 int effective_score = heatmap_val / (dist + 1);
 
@@ -137,7 +136,7 @@ namespace bot
             {
                 hlt::Position candidate(x, y);
 
-                // Verifier la distance minimale a tous les depots existants
+                // Verifier la distance minimale a tous les drops existants
                 bool too_close = false;
                 for (const auto &depot : existing_depots)
                 {
@@ -163,7 +162,7 @@ namespace bot
         return best_pos;
     }
 
-    // ── Anti-oscillation ────────────────────────────────────────
+    // ANTI-OSCILLATION
 
     void Blackboard::update_position_history(hlt::EntityId ship_id, const hlt::Position &pos)
     {
@@ -172,7 +171,7 @@ namespace bot
         if (history.size() > 4)
             history.pop_front();
 
-        // Detection du pattern A→B→A→B (4 positions, 2 distinctes alternees)
+        // Detection du pattern A -> B -> A -> B
         if (history.size() == 4)
         {
             if (history[0] == history[2] && history[1] == history[3] && !(history[0] == history[1]))
@@ -187,7 +186,7 @@ namespace bot
         return oscillating_ships.find(ship_id) != oscillating_ships.end();
     }
 
-    // ── Inspiration ─────────────────────────────────────────────
+    // INSPIRATION
 
     void Blackboard::compute_inspired_zones(int map_width, int map_height)
     {
@@ -221,11 +220,11 @@ namespace bot
         }
     }
 
-    // ── Combat ──────────────────────────────────────────────────
+    // COMBAT
 
     hlt::Position Blackboard::find_hunt_target(const hlt::GameMap &game_map,
-                                                const hlt::Position &ship_pos,
-                                                hlt::EntityId ship_id)
+                                               const hlt::Position &ship_pos,
+                                               hlt::EntityId ship_id)
     {
         int w = halite_heatmap[0].size();
         int h = halite_heatmap.size();
@@ -233,7 +232,7 @@ namespace bot
                                 ? constants::HUNT_RADIUS_LATE
                                 : constants::HUNT_RADIUS;
 
-        // Verifier si le target actuel est encore valide
+        // Verif si le target actuel est encore valide
         auto ht_it = hunt_targets.find(ship_id);
         if (ht_it != hunt_targets.end())
         {
@@ -250,7 +249,7 @@ namespace bot
             hunt_targets.erase(ht_it);
         }
 
-        // Chercher une nouvelle cible
+        // Chercher une nouvelle target
         int best_score = -1;
         hlt::Position best_pos(-1, -1);
         hlt::EntityId best_enemy_id = -1;
@@ -264,7 +263,7 @@ namespace bot
             if (dist > search_radius || dist == 0)
                 continue;
 
-            // Compter les defenders autour de la cible
+            // Compter les defenders autour de la target
             int defender_count = 0;
             for (const auto &other : enemy_ships)
             {
@@ -278,6 +277,8 @@ namespace bot
                 }
             }
 
+            // Score = halite de la target - distance * 100 - defenders * 300
+            // 100 -> penalise les targets lointaines, 300 -> penalise les targets bien defendues
             int score = enemy.halite - dist * 100 - defender_count * 300;
             if (score > best_score)
             {
