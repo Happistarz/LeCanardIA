@@ -117,6 +117,8 @@ namespace bot
         /// Ship assigne a la construction du dropoff (-1 si aucun)
         hlt::EntityId dropoff_ship_id = -1;
 
+        std::vector<hlt::Position> drop_positions;
+
         /// Trouve la meilleure pos pour un dropoff
         hlt::Position find_best_dropoff_position(
             const hlt::GameMap &game_map,
@@ -134,7 +136,8 @@ namespace bot
         /// Trouve le meilleur target d'exploration pour un ship (retourne (-1,-1) si aucun)
         hlt::Position find_best_explore_target(const hlt::GameMap &game_map,
                                                const hlt::Position &ship_pos,
-                                               hlt::EntityId ship_id) const;
+                                               hlt::EntityId ship_id,
+                                               const std::vector<hlt::Position> &drop_positions) const;
     };
 
 } // namespace bot

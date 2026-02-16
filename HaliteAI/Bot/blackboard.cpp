@@ -38,6 +38,7 @@ namespace bot
         enemy_ships.clear();
         inspired_zones.clear();
         oscillating_ships.clear();
+        drop_positions.clear();
         should_spawn = false;
     }
 
@@ -75,7 +76,8 @@ namespace bot
 
     hlt::Position Blackboard::find_best_explore_target(const hlt::GameMap &game_map,
                                                        const hlt::Position &ship_pos,
-                                                       hlt::EntityId ship_id) const
+                                                       hlt::EntityId ship_id,
+                                                       const std::vector<hlt::Position> &drop_positions) const
     {
         int w = game_map.width;
         int h = game_map.height;
@@ -100,12 +102,17 @@ namespace bot
                 if (it != targeted_cells.end() && it->second != ship_id)
                     continue;
 
-                // Score = heatmap / (distance + 1) pour favoriser les zones proches et riches
                 int heatmap_val = halite_heatmap[ny][nx];
 
-                // Augmenter le score des zones inspirees
                 if (inspired_zones.find(candidate) != inspired_zones.end())
-                    heatmap_val = heatmap_val * 3 / 2;
+                    heatmap_val = heatmap_val * 3;
+
+                for (const auto& drop : drop_positions)
+                {
+                    int drop_dist = map_utils::toroidal_distance(candidate, drop, w, h);
+                    if (drop_dist <= constants::HEATMAP_RADIUS)
+                        heatmap_val = heatmap_val * 3 / 2;
+                }
 
                 int effective_score = heatmap_val / (dist + 1);
 

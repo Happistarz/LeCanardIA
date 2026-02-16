@@ -22,6 +22,7 @@ namespace bot
 
         bb.clear_turn_data();
         bb.total_ships_alive = static_cast<int>(me->ships.size());
+        bb.drop_positions = get_drops_positions();
 
         update_map_stats(bb, game_map);
 
@@ -94,24 +95,24 @@ namespace bot
 
     // Infos ennemis
     void BotPlayer::update_enemy_info(Blackboard& bb, std::unique_ptr<hlt::GameMap>& game_map) {
-        // Marquer les positions ennemies comme danger zones
         for (const auto& player : game.players)
         {
             if (player->id == game.my_id)
                 continue;
 
-            // Ships ennemis
             for (const auto& ship_pair : player->ships)
             {
                 hlt::Position norm_pos = game_map->normalize(ship_pair.second->position);
                 bb.danger_zones.insert(norm_pos);
+                for (const auto& dir : hlt::ALL_CARDINALS)
+                {
+                    bb.danger_zones.insert(game_map->normalize(norm_pos.directional_offset(dir)));
+                }
                 bb.enemy_ships.push_back({ ship_pair.first, norm_pos, ship_pair.second->halite });
             }
 
-            // Shipyard ennemi
             bb.danger_zones.insert(game_map->normalize(player->shipyard->position));
 
-            // Dropoffs ennemis
             for (const auto& dropoff_pair : player->dropoffs)
             {
                 bb.danger_zones.insert(game_map->normalize(dropoff_pair.second->position));
@@ -346,6 +347,24 @@ namespace bot
 
         auto ship = ship_it->second;
         hlt::Position target = bb.planned_dropoff_pos;
+
+        if (map.at(target)->has_structure())
+        {
+            hlt::log::log("Dropoff: position bloquee par structure, reset plan");
+            bb.persistent_targets.erase(ship->id);
+            bb.planned_dropoff_pos = { -1, -1 };
+            bb.dropoff_ship_id = -1;
+            return false;
+        }
+
+        if (bb.is_ship_oscillating(ship->id))
+        {
+            hlt::log::log("Dropoff: ship oscille, reset plan");
+            bb.persistent_targets.erase(ship->id);
+            bb.planned_dropoff_pos = { -1, -1 };
+            bb.dropoff_ship_id = -1;
+            return false;
+        }
 
         if (ship->position != target)
         {
