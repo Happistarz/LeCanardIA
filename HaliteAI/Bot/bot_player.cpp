@@ -104,10 +104,6 @@ namespace bot
             {
                 hlt::Position norm_pos = game_map->normalize(ship_pair.second->position);
                 bb.danger_zones.insert(norm_pos);
-                for (const auto& dir : hlt::ALL_CARDINALS)
-                {
-                    bb.danger_zones.insert(game_map->normalize(norm_pos.directional_offset(dir)));
-                }
                 bb.enemy_ships.push_back({ ship_pair.first, norm_pos, ship_pair.second->halite });
             }
 
@@ -463,6 +459,9 @@ namespace bot
         if (shipyard_will_be_occupied(*me, game_map, requests, results))
             return false;
 
+        if (shipyard_congested(*me, *game_map))
+            return false;
+
         return true;
     }
 
@@ -538,6 +537,19 @@ namespace bot
     // _____________________________________
 
     // MAIN
+
+    bool BotPlayer::shipyard_congested(const hlt::Player& me, const hlt::GameMap& map) const
+    {
+        hlt::Position yard_pos = me.shipyard->position;
+        int nearby = 0;
+        for (const auto& ship_pair : me.ships)
+        {
+            int d = map_utils::toroidal_distance(ship_pair.second->position, yard_pos, map.width, map.height);
+            if (d <= constants::SPAWN_CONGESTION_RADIUS)
+                ++nearby;
+        }
+        return nearby >= constants::SPAWN_CONGESTION_LIMIT;
+    }
 
     std::vector<hlt::Command> BotPlayer::play_turn()
     {

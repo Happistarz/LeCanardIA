@@ -13,6 +13,16 @@ namespace bot
         return 0.0f;
     }
 
+    float ShipFSM::transition_close_and_loaded(void *data)
+    {
+        auto *ctx = static_cast<ShipFSMContext *>(data);
+        int dist = ctx->game_map->calculate_distance(ctx->ship->position, ctx->drop_position);
+        if (dist <= constants::SMART_RETURN_MAX_DIST &&
+            ctx->ship->halite >= hlt::constants::MAX_HALITE * constants::SMART_RETURN_CARGO_RATIO)
+            return 0.6f;
+        return 0.0f;
+    }
+
     float ShipFSM::transition_cell_has_halite(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
@@ -170,6 +180,7 @@ namespace bot
         m_trans_explore_to_urgent = new FSM_TRANSITION(&ShipFSM::transition_urgent_return, m_state_urgent_return);
         m_trans_explore_to_flee = new FSM_TRANSITION(&ShipFSM::transition_should_flee, m_state_flee);
         m_trans_explore_to_return = new FSM_TRANSITION(&ShipFSM::transition_is_full, m_state_return);
+        m_trans_explore_to_close_return = new FSM_TRANSITION(&ShipFSM::transition_close_and_loaded, m_state_return);
         m_trans_explore_to_hunt = new FSM_TRANSITION(&ShipFSM::transition_should_hunt, m_state_hunt);
         m_trans_explore_to_collect = new FSM_TRANSITION(&ShipFSM::transition_cell_has_halite, m_state_collect);
 
@@ -177,6 +188,7 @@ namespace bot
         m_trans_collect_to_urgent = new FSM_TRANSITION(&ShipFSM::transition_urgent_return, m_state_urgent_return);
         m_trans_collect_to_flee = new FSM_TRANSITION(&ShipFSM::transition_should_flee, m_state_flee);
         m_trans_collect_to_return = new FSM_TRANSITION(&ShipFSM::transition_is_full, m_state_return);
+        m_trans_collect_to_close_return = new FSM_TRANSITION(&ShipFSM::transition_close_and_loaded, m_state_return);
         m_trans_collect_to_hunt = new FSM_TRANSITION(&ShipFSM::transition_should_hunt, m_state_hunt);
         m_trans_collect_to_explore = new FSM_TRANSITION(&ShipFSM::transition_cell_empty, m_state_explore);
 
@@ -194,17 +206,19 @@ namespace bot
         m_trans_hunt_to_explore = new FSM_TRANSITION(&ShipFSM::transition_no_hunt_target, m_state_explore);
 
         // Initialisation des transitions dans les etats
-        m_state_explore->InitTransitions(5,
+        m_state_explore->InitTransitions(6,
                                          m_trans_explore_to_urgent,
                                          m_trans_explore_to_flee,
                                          m_trans_explore_to_return,
+                                         m_trans_explore_to_close_return,
                                          m_trans_explore_to_hunt,
                                          m_trans_explore_to_collect);
 
-        m_state_collect->InitTransitions(5,
+        m_state_collect->InitTransitions(6,
                                          m_trans_collect_to_urgent,
                                          m_trans_collect_to_flee,
                                          m_trans_collect_to_return,
+                                         m_trans_collect_to_close_return,
                                          m_trans_collect_to_hunt,
                                          m_trans_collect_to_explore);
 
@@ -245,12 +259,14 @@ namespace bot
         delete m_state_hunt;
 
         delete m_trans_explore_to_return;
+        delete m_trans_explore_to_close_return;
         delete m_trans_explore_to_collect;
         delete m_trans_explore_to_urgent;
         delete m_trans_explore_to_hunt;
         delete m_trans_explore_to_flee;
 
         delete m_trans_collect_to_return;
+        delete m_trans_collect_to_close_return;
         delete m_trans_collect_to_explore;
         delete m_trans_collect_to_urgent;
         delete m_trans_collect_to_hunt;

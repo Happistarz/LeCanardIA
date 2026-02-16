@@ -74,11 +74,19 @@ namespace bot
         /// Halite max d'un ship ennemi pour etre considere defender
         constexpr int DEFENDER_MAX_HALITE = 200;
 
+        // SMART RETURN
+
+        constexpr float SMART_RETURN_CARGO_RATIO = 0.75f;
+        constexpr int SMART_RETURN_MAX_DIST = 2;
+
+        // SPAWN
+
+        constexpr int SPAWN_CONGESTION_RADIUS = 2;
+        constexpr int SPAWN_CONGESTION_LIMIT = 3;
+
         // FLEE
 
-        /// Rayon de detection de menaces pour le flee
         constexpr int FLEE_THREAT_RADIUS = 2;
-        /// Cargo min pour declencher le flee (LOW CARGO -> NO RISK)
         constexpr int FLEE_MIN_CARGO = 300;
 
     } // namespace constants

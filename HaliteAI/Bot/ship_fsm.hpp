@@ -39,12 +39,14 @@ namespace bot
 
     // TRANSITIONS
     FSM_TRANSITION *m_trans_explore_to_return;
+    FSM_TRANSITION *m_trans_explore_to_close_return;
     FSM_TRANSITION *m_trans_explore_to_collect;
     FSM_TRANSITION *m_trans_explore_to_urgent;
     FSM_TRANSITION *m_trans_explore_to_hunt;
     FSM_TRANSITION *m_trans_explore_to_flee;
 
     FSM_TRANSITION *m_trans_collect_to_return;
+    FSM_TRANSITION *m_trans_collect_to_close_return;
     FSM_TRANSITION *m_trans_collect_to_explore;
     FSM_TRANSITION *m_trans_collect_to_urgent;
     FSM_TRANSITION *m_trans_collect_to_hunt;
@@ -62,6 +64,7 @@ namespace bot
 
     // TRANSITION CALLBACKS
     static float transition_is_full(void *data);
+    static float transition_close_and_loaded(void *data);
     static float transition_cell_has_halite(void *data);
     static float transition_cell_empty(void *data);
     static float transition_at_shipyard(void *data);

@@ -91,13 +91,11 @@ namespace bot
             if (resolved_indices.count(i))
                 continue;
 
-            // Check si un MoveRequest Y veut aller en X
             hlt::Position desired_norm = m_game_map->normalize(requests[i].m_desired);
             auto it = pos_to_index.find(desired_norm);
             if (it == pos_to_index.end())
                 continue;
 
-            // MoveRequest Y trouvé à l'indice j
             size_t j = it->second;
             if (j == i || resolved_indices.count(j))
                 continue;
@@ -105,10 +103,8 @@ namespace bot
             hlt::Position j_desired_norm = m_game_map->normalize(requests[j].m_desired);
             hlt::Position i_current_norm = m_game_map->normalize(requests[i].m_current);
 
-            // Si Y veut aller en X et X veut aller en Y
             if (j_desired_norm == i_current_norm)
             {
-                // Le moins prioritaire reste en STILL
                 if (requests[i].m_priority >= requests[j].m_priority)
                 {
                     results.push_back({requests[j].m_ship_id, hlt::Direction::STILL});
@@ -118,6 +114,36 @@ namespace bot
                 {
                     results.push_back({requests[i].m_ship_id, hlt::Direction::STILL});
                     resolved_indices.insert(i);
+                }
+                continue;
+            }
+
+            auto it_k = pos_to_index.find(j_desired_norm);
+            if (it_k == pos_to_index.end())
+                continue;
+
+            size_t k = it_k->second;
+            if (k == i || k == j || resolved_indices.count(k))
+                continue;
+
+            hlt::Position k_desired_norm = m_game_map->normalize(requests[k].m_desired);
+            if (k_desired_norm == i_current_norm)
+            {
+                int min_prio = std::min({requests[i].m_priority, requests[j].m_priority, requests[k].m_priority});
+                if (requests[i].m_priority == min_prio)
+                {
+                    results.push_back({requests[i].m_ship_id, hlt::Direction::STILL});
+                    resolved_indices.insert(i);
+                }
+                else if (requests[j].m_priority == min_prio)
+                {
+                    results.push_back({requests[j].m_ship_id, hlt::Direction::STILL});
+                    resolved_indices.insert(j);
+                }
+                else
+                {
+                    results.push_back({requests[k].m_ship_id, hlt::Direction::STILL});
+                    resolved_indices.insert(k);
                 }
             }
         }

@@ -88,6 +88,7 @@ namespace bot
         bool shipyard_will_be_occupied(const hlt::Player&, std::unique_ptr<hlt::GameMap>& game_map,
             const std::vector<MoveRequest>&,
             const std::vector<MoveResult>&) const;
+        bool shipyard_congested(const hlt::Player&, const hlt::GameMap&) const;
 
     public:
         BotPlayer(hlt::Game &game_instance);

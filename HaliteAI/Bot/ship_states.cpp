@@ -4,6 +4,7 @@
 #include "bot_constants.hpp"
 #include "hlt/game_map.hpp"
 #include "hlt/direction.hpp"
+#include "hlt/constants.hpp"
 
 #include <algorithm>
 #include <vector>
@@ -162,8 +163,22 @@ namespace bot
     MoveRequest ShipCollectState::execute(std::shared_ptr<hlt::Ship> ship,
                                           hlt::GameMap &game_map, const hlt::Position &shipyard_position)
     {
-        // Si la cell actuelle a du halite, rester sur place
-        // Alternatives : toutes les directions cardinales triées par halite décroissante
+        const Blackboard &bb = Blackboard::get_instance();
+
+        int cell_halite = game_map.at(ship->position)->halite;
+        bool inspired = bb.inspired_zones.find(game_map.normalize(ship->position)) != bb.inspired_zones.end();
+        int effective_halite = inspired ? cell_halite * 3 : cell_halite;
+
+        if (effective_halite < hlt::constants::MAX_HALITE * constants::HALITE_LOW_THRESHOLD)
+        {
+            hlt::Direction best_dir;
+            std::vector<hlt::Direction> alternatives;
+            navigate_with_blackboard(ship, game_map, shipyard_position, best_dir, alternatives);
+            hlt::Position desired = game_map.normalize(ship->position.directional_offset(best_dir));
+            return MoveRequest{ship->id, ship->position, desired,
+                               best_dir, constants::COLLECT_PRIORITY, alternatives};
+        }
+
         std::vector<std::pair<int, hlt::Direction>> scored_dirs;
         for (const auto &direction : hlt::ALL_CARDINALS)
         {
@@ -171,12 +186,10 @@ namespace bot
             scored_dirs.push_back({game_map.at(alt_pos)->halite, direction});
         }
 
-        // Tri décroissant par halite
         std::sort(scored_dirs.begin(), scored_dirs.end(),
                   [](const auto &a, const auto &b)
                   { return a.first > b.first; });
 
-        // Alternatives : toutes les directions cardinales triées par halite décroissante
         std::vector<hlt::Direction> alternatives;
         for (const auto &sd : scored_dirs)
             alternatives.push_back(sd.second);
