@@ -14,8 +14,8 @@ __pycache__/
 **/*.vs
 
 HaliteAI/HaliteAI/
-HaliteAI*.exe
-HaliteAI*.pdb
+*.exe
+*.pdb
 
 out/
 

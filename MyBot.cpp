@@ -4,7 +4,7 @@
 int main(int argc, char *argv[])
 {
     hlt::Game game;
-    game.ready("LeCanardIA");
+    game.ready("LaTortIA");
 
     bot::BotPlayer player(game);
 

@@ -27,19 +27,166 @@
     <ClCompile Include="..\MyBot.cpp">
       <Filter>Fichiers sources</Filter>
     </ClCompile>
-    <ClCompile Include="Bot\**\*.cpp">
+    <ClCompile Include="Bot\bot_player.cpp">
       <Filter>Bot</Filter>
+    </ClCompile>
+    <ClCompile Include="Bot\fsm.cpp">
+      <Filter>Bot</Filter>
+    </ClCompile>
+    <ClCompile Include="Bot\map_utils.cpp">
+      <Filter>Bot</Filter>
+    </ClCompile>
+    <ClCompile Include="Bot\ship_fsm.cpp">
+      <Filter>Bot</Filter>
+    </ClCompile>
+    <ClCompile Include="Bot\ship_states.cpp">
+      <Filter>Bot</Filter>
+    </ClCompile>
+    <ClCompile Include="Bot\traffic_manager.cpp">
+      <Filter>Bot</Filter>
+    </ClCompile>
+    <ClCompile Include="..\hlt\*.cpp">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\hlt\*.cpp">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\hlt\*.cpp">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\hlt\*.cpp">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\hlt\*.cpp">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\hlt\*.cpp">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\hlt\*.cpp">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Bot\*.cpp">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Bot\*.cpp">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Bot\*.cpp">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Bot\*.cpp">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Bot\*.cpp">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Bot\*.cpp">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Bot\*.cpp">
+      <Filter>Fichiers sources</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\hlt\*.hpp">
       <Filter>hlt</Filter>
     </ClInclude>
-    <ClInclude Include="Bot\**\*.hpp">
+    <ClInclude Include="Bot\bot_constants.hpp">
+      <Filter>Bot</Filter>
+    </ClInclude>
+    <ClInclude Include="Bot\bot_player.hpp">
+      <Filter>Bot</Filter>
+    </ClInclude>
+    <ClInclude Include="Bot\fsm.hpp">
+      <Filter>Bot</Filter>
+    </ClInclude>
+    <ClInclude Include="Bot\map_utils.hpp">
+      <Filter>Bot</Filter>
+    </ClInclude>
+    <ClInclude Include="Bot\move_request.hpp">
+      <Filter>Bot</Filter>
+    </ClInclude>
+    <ClInclude Include="Bot\ship_fsm.hpp">
+      <Filter>Bot</Filter>
+    </ClInclude>
+    <ClInclude Include="Bot\ship_states.hpp">
+      <Filter>Bot</Filter>
+    </ClInclude>
+    <ClInclude Include="Bot\traffic_manager.hpp">
       <Filter>Bot</Filter>
     </ClInclude>
     <ClInclude Include="Bot\**\*.h">
       <Filter>Bot</Filter>
+    </ClInclude>
+    <ClInclude Include="..\hlt\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="..\hlt\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="..\hlt\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="..\hlt\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="..\hlt\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="..\hlt\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="..\hlt\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="..\hlt\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="..\hlt\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="..\hlt\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="..\hlt\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="..\hlt\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="..\hlt\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="..\hlt\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="Bot\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="Bot\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="Bot\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="Bot\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="Bot\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="Bot\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="Bot\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="Bot\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
+    </ClInclude>
+    <ClInclude Include="Bot\*.hpp">
+      <Filter>Fichiers d%27en-t�te</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

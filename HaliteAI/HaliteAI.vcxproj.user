@@ -4,16 +4,16 @@
     <LocalDebuggerCommand>halite.exe</LocalDebuggerCommand>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerWorkingDirectory>$(SolutionDir)..\</LocalDebuggerWorkingDirectory>
-    <LocalDebuggerCommandArguments>--replay-directory replays/ -vvv --width 64 --height 64 "HaliteAI$(Configuration).exe" "MyBot.exe" "MyBot.exe" "MyBot.exe"</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>--replay-directory replays/ -vvv --width 64 --height 64 "LaTortIA$(Configuration).exe" "LaTortIA$(Configuration).exe" "LaTortIA$(Configuration).exe" "LaTortIA$(Configuration).exe"</LocalDebuggerCommandArguments>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LocalDebuggerCommand>halite.exe</LocalDebuggerCommand>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerWorkingDirectory>$(SolutionDir)..\</LocalDebuggerWorkingDirectory>
-    <LocalDebuggerCommandArguments>--replay-directory replays/ -vvv --width 64 --height 64 "HaliteAI$(Configuration).exe" "MyBot.exe" "MyBot.exe" "MyBot.exe"</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>--replay-directory replays/ -vvv --width 64 --height 64 "LaTortIA$(Configuration).exe" "LaTortIA$(Configuration).exe" "LaTortIA$(Configuration).exe" "LaTortIA$(Configuration).exe"</LocalDebuggerCommandArguments>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <LocalDebuggerCommandArguments>--replay-directory replays/ -vvv --width 64 --height 64 "HaliteAI$(Configuration).exe" "MyBot.exe" "MyBot.exe" "MyBot.exe"</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>--replay-directory replays/ -vvv --width 64 --height 64 "LaTortIA$(Configuration).exe" "LaTortIA$(Configuration).exe" "LaTortIA$(Configuration).exe" "LaTortIA$(Configuration).exe"</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerWorkingDirectory>$(SolutionDir)..\</LocalDebuggerWorkingDirectory>
     <LocalDebuggerCommand>halite.exe</LocalDebuggerCommand>
@@ -22,10 +22,9 @@
     <ShowAllFiles>true</ShowAllFiles>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LocalDebuggerCommandArguments>--replay-directory replays/ -vvv --width 64 --height 64 "HaliteAIDebug.exe" "HaliteAIDebug.exe" "HaliteAIDebug.exe" "HaliteAIDebug.exe"</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>--replay-directory replays/ -vvv --width 64 --height 64 "LaTortIA$(Configuration).exe" "LaTortIA$(Configuration).exe" "LaTortIA$(Configuration).exe" "LaTortIA$(Configuration).exe"</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerWorkingDirectory>$(SolutionDir)..\</LocalDebuggerWorkingDirectory>
     <LocalDebuggerCommand>halite.exe</LocalDebuggerCommand>
-    <LocalDebuggerCommandArgumentsHistory>--replay-directory replays/ -vvv --width 64 --height 64 "HaliteAIDebug.exe" "MyBot.exe" "MyBot.exe" "MyBot.exe"|--replay-directory replays/ -vvv --width 64 --height 64 "HaliteAIDebug.exe" "HaliteAIDebug.exe" "HaliteAIDebug.exe" "HaliteAIDebug.exe"|</LocalDebuggerCommandArgumentsHistory>
   </PropertyGroup>
 </Project>
