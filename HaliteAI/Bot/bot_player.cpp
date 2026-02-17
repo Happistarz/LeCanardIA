@@ -14,11 +14,12 @@ namespace bot
 
     // UPDATE BLACKBOARD
 
+    // Update le blackboard avec les donnees du turn
     void BotPlayer::update_blackboard()
     {
-        Blackboard& bb = Blackboard::get_instance();
+        Blackboard &bb = Blackboard::get_instance();
         std::shared_ptr<hlt::Player> me = game.me;
-        std::unique_ptr<hlt::GameMap>& game_map = game.game_map;
+        std::unique_ptr<hlt::GameMap> &game_map = game.game_map;
 
         bb.clear_turn_data();
         bb.total_ships_alive = static_cast<int>(me->ships.size());
@@ -57,16 +58,18 @@ namespace bot
         bb.compute_inspired_zones(game_map->width, game_map->height);
 
         update_position_history(bb, game_map, me);
-
     }
 
     // FONCTIONS DE BLACKBOARD
 
     // Stats de la map
-    void BotPlayer::update_map_stats(Blackboard& bb, std::unique_ptr<hlt::GameMap>& game_map) {
+    void BotPlayer::update_map_stats(Blackboard &bb, std::unique_ptr<hlt::GameMap> &game_map)
+    {
 
         long long total_halite = 0;
         int cell_count = game_map->width * game_map->height;
+
+        // Calcul de l'halite moyen par cell
         for (int y = 0; y < game_map->height; ++y)
         {
             for (int x = 0; x < game_map->width; ++x)
@@ -74,34 +77,42 @@ namespace bot
                 total_halite += game_map->cells[y][x].halite;
             }
         }
+
         bb.average_halite = (cell_count > 0) ? static_cast<int>(total_halite / cell_count) : 0;
     }
 
     // Phase de jeu
-    void BotPlayer::update_game_phase(Blackboard& bb) {
+    void BotPlayer::update_game_phase(Blackboard &bb)
+    {
 
         // Phase de jeu
         float progress = static_cast<float>(game.turn_number) /
-            static_cast<float>(hlt::constants::MAX_TURNS);
+                         static_cast<float>(hlt::constants::MAX_TURNS);
 
         if (progress < 0.25f)
             bb.current_phase = GamePhase::EARLY;
+
         else if (progress < 0.60f)
             bb.current_phase = GamePhase::MID;
+
         else if (progress < 0.85f)
             bb.current_phase = GamePhase::LATE;
+
         else
             bb.current_phase = GamePhase::ENDGAME;
     }
 
     // Ships bloqués
-    void BotPlayer::update_stuck_ships(Blackboard& bb, std::unique_ptr<hlt::GameMap>& game_map, std::shared_ptr<hlt::Player> me) {
+    void BotPlayer::update_stuck_ships(Blackboard &bb, std::unique_ptr<hlt::GameMap> &game_map, std::shared_ptr<hlt::Player> me)
+    {
         // Ship stuck : pas assez de halite pour bouger hors de la cell
-        for (const auto& ship_pair : me->ships)
+        for (const auto &ship_pair : me->ships)
         {
-            const auto& ship = ship_pair.second;
+            const auto &ship = ship_pair.second;
+
             int cell_halite = game_map->at(ship->position)->halite;
             int move_cost = cell_halite / hlt::constants::MOVE_COST_RATIO;
+
             if (ship->halite < move_cost)
             {
                 bb.stuck_positions.insert(game_map->normalize(ship->position));
@@ -110,30 +121,36 @@ namespace bot
     }
 
     // Infos ennemis
-    void BotPlayer::update_enemy_info(Blackboard& bb, std::unique_ptr<hlt::GameMap>& game_map) {
-        for (const auto& player : game.players)
+    void BotPlayer::update_enemy_info(Blackboard &bb, std::unique_ptr<hlt::GameMap> &game_map)
+    {
+        for (const auto &player : game.players)
         {
             if (player->id == game.my_id)
                 continue;
 
-            for (const auto& ship_pair : player->ships)
+            for (const auto &ship_pair : player->ships)
             {
                 hlt::Position norm_pos = game_map->normalize(ship_pair.second->position);
                 bb.danger_zones.insert(norm_pos);
-                bb.enemy_ships.push_back({ ship_pair.first, norm_pos, ship_pair.second->halite });
+                bb.enemy_ships.push_back({ship_pair.first, norm_pos, ship_pair.second->halite});
+
                 // Adjacents dangereux si l'ennemi est leger et mobile
                 int cell_h = game_map->at(norm_pos)->halite;
                 int move_cost = cell_h / hlt::constants::MOVE_COST_RATIO;
                 int avg_ship_halite = bb.total_ships_alive > 0 ? (bb.average_halite * 3) : 500;
-                if (ship_pair.second->halite >= move_cost && ship_pair.second->halite < avg_ship_halite) {
-                    for (const auto& adj : norm_pos.get_surrounding_cardinals())
+
+                // Seuil de halite pour considérer un ennemi comme une menace mobile
+                if (ship_pair.second->halite >= move_cost && ship_pair.second->halite < avg_ship_halite)
+                {
+
+                    for (const auto &adj : norm_pos.get_surrounding_cardinals())
                         bb.danger_zones.insert(game_map->normalize(adj));
                 }
             }
 
             bb.danger_zones.insert(game_map->normalize(player->shipyard->position));
 
-            for (const auto& dropoff_pair : player->dropoffs)
+            for (const auto &dropoff_pair : player->dropoffs)
             {
                 bb.danger_zones.insert(game_map->normalize(dropoff_pair.second->position));
             }
@@ -141,40 +158,46 @@ namespace bot
     }
 
     // Marquer les persistent_targets comme targeted_cells
-    void BotPlayer::update_persistent_targets(Blackboard& bb) {
-        for (const auto& pt : bb.persistent_targets)
+    void BotPlayer::update_persistent_targets(Blackboard &bb)
+    {
+        for (const auto &pt : bb.persistent_targets)
         {
             bb.targeted_cells[pt.second] = pt.first;
         }
     }
 
     // Update l'historique de positions pour detecter les oscillations
-    void BotPlayer::update_position_history(Blackboard& bb, std::unique_ptr<hlt::GameMap>& game_map, std::shared_ptr<hlt::Player> me) {
-        for (const auto& ship_pair : me->ships)
+    void BotPlayer::update_position_history(Blackboard &bb, std::unique_ptr<hlt::GameMap> &game_map, std::shared_ptr<hlt::Player> me)
+    {
+        for (const auto &ship_pair : me->ships)
         {
             bb.update_position_history(ship_pair.first,
-                game_map->normalize(ship_pair.second->position));
+                                       game_map->normalize(ship_pair.second->position));
         }
     }
+
     // _____________________________________
 
     // NETTOYAGE
 
+    // Supprime les FSM des ships morts
     void BotPlayer::cleanup_dead_ships()
     {
         Blackboard &bb = Blackboard::get_instance();
         const auto &alive_ships = game.me->ships;
+
         for (auto it = ship_fsms.begin(); it != ship_fsms.end();)
         {
-            if (alive_ships.find(it->first) == alive_ships.end())
+            if (alive_ships.find(it->first) != alive_ships.end())
             {
-                bb.persistent_targets.erase(it->first);
-                bb.hunt_targets.erase(it->first);
-                bb.position_history.erase(it->first);
-                it = ship_fsms.erase(it);
-            }
-            else
                 ++it;
+                continue;
+            }
+
+            bb.persistent_targets.erase(it->first);
+            bb.hunt_targets.erase(it->first);
+            bb.position_history.erase(it->first);
+            it = ship_fsms.erase(it);
         }
     }
 
@@ -185,35 +208,25 @@ namespace bot
     {
         std::vector<hlt::Position> positions;
         positions.push_back(game.me->shipyard->position);
+
         for (const auto &dropoff_pair : game.me->dropoffs)
         {
             positions.push_back(dropoff_pair.second->position);
         }
+
         return positions;
     }
+
     // Closest drop
     hlt::Position BotPlayer::closest_drop(const hlt::Position &pos) const
     {
-        std::unique_ptr<hlt::GameMap> &game_map = game.game_map;
         std::vector<hlt::Position> depots = get_drops_positions();
-
-        hlt::Position best = depots[0];
-        int best_dist = game_map->calculate_distance(pos, best);
-
-        for (size_t i = 1; i < depots.size(); ++i)
-        {
-            int d = game_map->calculate_distance(pos, depots[i]);
-            if (d < best_dist)
-            {
-                best_dist = d;
-                best = depots[i];
-            }
-        }
-        return best;
+        return map_utils::closest_position(pos, depots, game.game_map->width, game.game_map->height);
     }
 
     // MOVE REQUESTS
 
+    // Collecte les MoveRequests de tous les ships via leurs FSM
     std::vector<MoveRequest> BotPlayer::collect_move_requests()
     {
         std::shared_ptr<hlt::Player> me = game.me;
@@ -233,15 +246,13 @@ namespace bot
 
             // Skip si ship est en mission de dropoff
             const Blackboard &bb_ref = Blackboard::get_instance();
+
             if (is_dropoff_ship(*ship, bb_ref))
-            {
                 // Navigation manuelle vers la pos du dropoff
                 requests.push_back(handle_dropoff_ship(ship, *game_map, bb_ref));
-            }
-            else {
 
-            requests.push_back(handle_normal_ship(ship, *game_map, turns_remaining));
-            }
+            else
+                requests.push_back(handle_normal_ship(ship, *game_map, turns_remaining));
         }
 
         return requests;
@@ -249,8 +260,8 @@ namespace bot
 
     // FONCTIONS DE MOVE REQUESTS
 
-    // Should Skip Ship
-    bool BotPlayer::should_skip_ship(const hlt::Ship& ship) const
+    // Logique de skip de ship
+    bool BotPlayer::should_skip_ship(const hlt::Ship &ship) const
     {
         if (m_converting_ship_id >= 0 && ship.id == m_converting_ship_id)
             return true;
@@ -258,34 +269,34 @@ namespace bot
         return false;
     }
 
-    // Is Dropoff Ship
-    bool BotPlayer::is_dropoff_ship(const hlt::Ship& ship, const Blackboard& bb) const
+    // Est-ce un dropoff ship ?
+    bool BotPlayer::is_dropoff_ship(const hlt::Ship &ship, const Blackboard &bb) const
     {
         return (bb.dropoff_ship_id >= 0 && ship.id == bb.dropoff_ship_id);
     }
 
     // Navigation spéciale dropoff
     MoveRequest BotPlayer::handle_dropoff_ship(std::shared_ptr<hlt::Ship> ship,
-        hlt::GameMap& map,
-        const Blackboard& bb)
+                                               hlt::GameMap &map,
+                                               const Blackboard &bb)
     {
         hlt::Direction best_dir;
         std::vector<hlt::Direction> alternatives;
 
         map_utils::navigate_toward(ship, map, bb.planned_dropoff_pos,
-            bb.stuck_positions, bb.danger_zones,
-            best_dir, alternatives);
+                                   bb.stuck_positions, bb.danger_zones,
+                                   best_dir, alternatives);
 
         hlt::Position desired = map.normalize(ship->position.directional_offset(best_dir));
 
-        return { ship->id, ship->position, desired, best_dir,
-                constants::RETURN_PRIORITY, alternatives };
+        return {ship->id, ship->position, desired, best_dir,
+                constants::RETURN_PRIORITY, alternatives};
     }
 
     // Ship normal (FSM)
     MoveRequest BotPlayer::handle_normal_ship(std::shared_ptr<hlt::Ship> ship,
-        hlt::GameMap& map,
-        int turns_remaining)
+                                              hlt::GameMap &map,
+                                              int turns_remaining)
     {
         auto fsm_it = ship_fsms.find(ship->id);
         if (fsm_it == ship_fsms.end())
@@ -298,6 +309,7 @@ namespace bot
 
     // DROPOFF
 
+    // Tenter de construire un dropoff si les conditions sont reunies
     bool BotPlayer::try_build_dropoff(std::vector<hlt::Command> &commands)
     {
         Blackboard &bb = Blackboard::get_instance();
@@ -318,9 +330,9 @@ namespace bot
     // FONCTIONS DE DROPOFF
 
     // Conditions globales
-    bool BotPlayer::can_build_dropoff(const Blackboard& bb,
-        const hlt::Player& me,
-        const hlt::GameMap& map) const
+    bool BotPlayer::can_build_dropoff(const Blackboard &bb,
+                                      const hlt::Player &me,
+                                      const hlt::GameMap &map) const
     {
         if ((int)me.dropoffs.size() >= constants::MAX_DROPOFFS)
             return false;
@@ -336,30 +348,29 @@ namespace bot
 
         return true;
     }
-    
+
     // Reset si ship mort
-    void BotPlayer::reset_dead_dropoff_plan(Blackboard& bb, const hlt::Player& me)
+    void BotPlayer::reset_dead_dropoff_plan(Blackboard &bb, const hlt::Player &me)
     {
-        if (bb.dropoff_ship_id >= 0 &&
-            me.ships.find(bb.dropoff_ship_id) == me.ships.end())
-        {
-            hlt::log::log("Dropoff: ship mort, reset plan");
-            bb.planned_dropoff_pos = { -1, -1 };
-            bb.dropoff_ship_id = -1;
-        }
+        if (bb.dropoff_ship_id < 0 || me.ships.find(bb.dropoff_ship_id) != me.ships.end())
+            return;
+
+        hlt::log::log("Dropoff: ship mort, reset plan");
+        bb.planned_dropoff_pos = {-1, -1};
+        bb.dropoff_ship_id = -1;
     }
-    
+
     // Plan actif ?
-    bool BotPlayer::has_active_dropoff_plan(const Blackboard& bb) const
+    bool BotPlayer::has_active_dropoff_plan(const Blackboard &bb) const
     {
         return (bb.planned_dropoff_pos.x >= 0 && bb.dropoff_ship_id >= 0);
     }
 
-    // Exécuter le plan (navigation + conversion) 
-    bool BotPlayer::execute_dropoff_plan(std::vector<hlt::Command>& commands,
-        Blackboard& bb,
-        hlt::Player& me,
-        hlt::GameMap& map)
+    // Exécuter le plan (navigation + conversion)
+    bool BotPlayer::execute_dropoff_plan(std::vector<hlt::Command> &commands,
+                                         Blackboard &bb,
+                                         hlt::Player &me,
+                                         hlt::GameMap &map)
     {
         auto ship_it = me.ships.find(bb.dropoff_ship_id);
         if (ship_it == me.ships.end())
@@ -371,18 +382,14 @@ namespace bot
         if (map.at(target)->has_structure())
         {
             hlt::log::log("Dropoff: position bloquee par structure, reset plan");
-            bb.persistent_targets.erase(ship->id);
-            bb.planned_dropoff_pos = { -1, -1 };
-            bb.dropoff_ship_id = -1;
+            clear_dropoff_plan(bb, ship->id);
             return false;
         }
 
         if (bb.is_ship_oscillating(ship->id))
         {
             hlt::log::log("Dropoff: ship oscille, reset plan");
-            bb.persistent_targets.erase(ship->id);
-            bb.planned_dropoff_pos = { -1, -1 };
-            bb.dropoff_ship_id = -1;
+            clear_dropoff_plan(bb, ship->id);
             return false;
         }
 
@@ -391,9 +398,11 @@ namespace bot
             bb.persistent_targets[ship->id] = target;
             return false;
         }
-        // Ship arrived → try convert
+
+        // Ship arrived -> try convert
         int real_cost = hlt::constants::DROPOFF_COST - ship->halite - map.at(target)->halite;
-        if (real_cost < 0) real_cost = 0;
+        if (real_cost < 0)
+            real_cost = 0;
 
         if (me.halite < real_cost)
             return false;
@@ -409,16 +418,16 @@ namespace bot
         // Forcer les ships proches a miner autour du nouveau dropoff
         redirect_ships_to_new_dropoff(bb, target);
 
-        bb.planned_dropoff_pos = { -1, -1 };
+        bb.planned_dropoff_pos = {-1, -1};
         bb.dropoff_ship_id = -1;
 
         return true;
     }
 
     // Créer un nouveau plan
-    bool BotPlayer::create_new_dropoff_plan(Blackboard& bb,
-        hlt::Player& me,
-        hlt::GameMap& map)
+    bool BotPlayer::create_new_dropoff_plan(Blackboard &bb,
+                                            hlt::Player &me,
+                                            hlt::GameMap &map)
     {
         int min_depot_dist = std::max(8, map.width / constants::MIN_DROPOFF_DEPOT_DISTANCE_RATIO);
 
@@ -439,19 +448,19 @@ namespace bot
         hlt::log::log("Dropoff plan created ship " + std::to_string(best_ship->id));
         return false;
     }
-    
+
     // Trouver le meilleur ship
-    std::shared_ptr<hlt::Ship> BotPlayer::find_best_dropoff_ship(hlt::Player& me,
-        hlt::GameMap& map,
-        const hlt::Position& pos)
+    std::shared_ptr<hlt::Ship> BotPlayer::find_best_dropoff_ship(hlt::Player &me,
+                                                                 hlt::GameMap &map,
+                                                                 const hlt::Position &pos)
     {
         std::shared_ptr<hlt::Ship> best_ship = nullptr;
         int best_dist = 9999;
         int max_assign_dist = map.width / 3;
 
-        for (const auto& p : me.ships)
+        for (const auto &p : me.ships)
         {
-            const auto& ship = p.second;
+            const auto &ship = p.second;
             int d = map.calculate_distance(ship->position, pos);
 
             if (d < best_dist && d <= max_assign_dist)
@@ -460,22 +469,31 @@ namespace bot
                 best_ship = ship;
             }
         }
+
         return best_ship;
     }
 
+    // Reset le plan dropoff
+    void BotPlayer::clear_dropoff_plan(Blackboard &bb, hlt::EntityId ship_id)
+    {
+        bb.persistent_targets.erase(ship_id);
+        bb.planned_dropoff_pos = {-1, -1};
+        bb.dropoff_ship_id = -1;
+    }
+
     // Redirige les ships proches vers la zone du nouveau dropoff pour miner autour
-    void BotPlayer::redirect_ships_to_new_dropoff(Blackboard& bb, const hlt::Position& dropoff_pos)
+    void BotPlayer::redirect_ships_to_new_dropoff(Blackboard &bb, const hlt::Position &dropoff_pos)
     {
         std::shared_ptr<hlt::Player> me = game.me;
-        std::unique_ptr<hlt::GameMap>& game_map = game.game_map;
+        std::unique_ptr<hlt::GameMap> &game_map = game.game_map;
         int w = game_map->width;
         int h = game_map->height;
 
         hlt::log::log("Redirect: checking " + std::to_string(me->ships.size()) + " ships near dropoff (" + std::to_string(dropoff_pos.x) + "," + std::to_string(dropoff_pos.y) + ")");
 
-        for (const auto& ship_pair : me->ships)
+        for (const auto &ship_pair : me->ships)
         {
-            const auto& ship = ship_pair.second;
+            const auto &ship = ship_pair.second;
             // Skip le ship qui vient d'etre converti en dropoff
             if (ship->id == m_converting_ship_id)
                 continue;
@@ -490,52 +508,54 @@ namespace bot
                 continue;
 
             auto fsm_it = ship_fsms.find(ship->id);
-            if (fsm_it != ship_fsms.end())
+            if (fsm_it == ship_fsms.end())
+                continue;
+
+            // Chercher la meilleure cell autour du dropoff pour ce ship
+            int best_score = -1;
+            hlt::Position best_cell = dropoff_pos;
+
+            for (int dy = -constants::HEATMAP_RADIUS; dy <= constants::HEATMAP_RADIUS; ++dy)
             {
-                // Chercher la meilleure cell autour du dropoff pour ce ship
-                int best_score = -1;
-                hlt::Position best_cell = dropoff_pos;
-
-                for (int dy = -constants::HEATMAP_RADIUS; dy <= constants::HEATMAP_RADIUS; ++dy)
+                for (int dx = -constants::HEATMAP_RADIUS; dx <= constants::HEATMAP_RADIUS; ++dx)
                 {
-                    for (int dx = -constants::HEATMAP_RADIUS; dx <= constants::HEATMAP_RADIUS; ++dx)
+                    int md = std::abs(dx) + std::abs(dy);
+                    if (md > constants::HEATMAP_RADIUS || md == 0)
+                        continue;
+
+                    // Cell candidate en toroidal
+                    int nx = ((dropoff_pos.x + dx) % w + w) % w;
+                    int ny = ((dropoff_pos.y + dy) % h + h) % h;
+                    hlt::Position candidate(nx, ny);
+
+                    // Skip si deja target par un autre ship
+                    auto it = bb.targeted_cells.find(candidate);
+                    if (it != bb.targeted_cells.end() && it->second != ship->id)
+                        continue;
+
+                    int cell_halite = game_map->at(candidate)->halite;
+                    if (cell_halite > best_score)
                     {
-                        int md = std::abs(dx) + std::abs(dy);
-                        if (md > constants::HEATMAP_RADIUS || md == 0)
-                            continue;
-
-                        int nx = ((dropoff_pos.x + dx) % w + w) % w;
-                        int ny = ((dropoff_pos.y + dy) % h + h) % h;
-                        hlt::Position candidate(nx, ny);
-
-                        // Skip si deja target par un autre ship
-                        auto it = bb.targeted_cells.find(candidate);
-                        if (it != bb.targeted_cells.end() && it->second != ship->id)
-                            continue;
-
-                        int cell_halite = game_map->at(candidate)->halite;
-                        if (cell_halite > best_score)
-                        {
-                            best_score = cell_halite;
-                            best_cell = candidate;
-                        }
+                        best_score = cell_halite;
+                        best_cell = candidate;
                     }
                 }
-
-                // Assigner la target persistante vers la zone du dropoff
-                bb.persistent_targets[ship->id] = best_cell;
-                bb.targeted_cells[best_cell] = ship->id;
-                hlt::log::log("Redirect ship " + std::to_string(ship->id) + " to new dropoff zone");
             }
+
+            // Assigner la target persistante vers la zone du dropoff
+            bb.persistent_targets[ship->id] = best_cell;
+            bb.targeted_cells[best_cell] = ship->id;
+            hlt::log::log("Redirect ship " + std::to_string(ship->id) + " to new dropoff zone");
         }
     }
 
     // _____________________________________
-    
+
     // SPAWN
 
+    // Conditions de spawn
     bool BotPlayer::should_spawn(const std::vector<MoveRequest> &requests,
-                                  const std::vector<MoveResult> &results) const
+                                 const std::vector<MoveResult> &results) const
     {
         const Blackboard &bb = Blackboard::get_instance();
         std::shared_ptr<hlt::Player> me = game.me;
@@ -566,10 +586,9 @@ namespace bot
     // FONCTIONS DE SPAWN
 
     // Phase + tours restants
-    bool BotPlayer::can_spawn_phase(const Blackboard& bb, int turns_remaining) const
+    bool BotPlayer::can_spawn_phase(const Blackboard &bb, int turns_remaining) const
     {
-        if (bb.current_phase == GamePhase::LATE ||
-            bb.current_phase == GamePhase::ENDGAME)
+        if (bb.current_phase == GamePhase::LATE || bb.current_phase == GamePhase::ENDGAME)
             return false;
 
         if (turns_remaining < constants::SPAWN_MIN_TURNS_LEFT)
@@ -579,7 +598,7 @@ namespace bot
     }
 
     // Halite disponible (spawn + dropoff reserve)
-    bool BotPlayer::has_spawn_halite(const Blackboard& bb, const hlt::Player& me) const
+    bool BotPlayer::has_spawn_halite(const Blackboard &bb, const hlt::Player &me) const
     {
         if (me.halite < hlt::constants::SHIP_COST)
             return false;
@@ -592,40 +611,40 @@ namespace bot
     }
 
     // Map assez riche ?
-    bool BotPlayer::map_is_rich_enough(const Blackboard& bb) const
+    bool BotPlayer::map_is_rich_enough(const Blackboard &bb) const
     {
         return bb.average_halite >= constants::SPAWN_MIN_AVG_HALITE;
     }
 
     // Limite de ships
-    bool BotPlayer::below_max_ships(const Blackboard& bb, const hlt::GameMap& map) const
+    bool BotPlayer::below_max_ships(const Blackboard &bb, const hlt::GameMap &map) const
     {
         int max_ships = constants::SPAWN_MAX_SHIPS_BASE * map.width / 64;
         return bb.total_ships_alive < max_ships;
     }
 
     // Collision sur le shipyard
-    bool BotPlayer::shipyard_will_be_occupied(const hlt::Player& me,
-        std::unique_ptr<hlt::GameMap>& map,
-        const std::vector<MoveRequest>& requests,
-        const std::vector<MoveResult>& results) const
+    bool BotPlayer::shipyard_will_be_occupied(const hlt::Player &me,
+                                              std::unique_ptr<hlt::GameMap> &map,
+                                              const std::vector<MoveRequest> &requests,
+                                              const std::vector<MoveResult> &results) const
     {
         hlt::Position shipyard_pos = me.shipyard->position;
 
-        for (const auto& res : results)
+        for (const auto &res : results)
         {
-            for (const auto& req : requests)
+            for (const auto &req : requests)
             {
-                if (req.m_ship_id == res.m_ship_id)
-                {
-                    hlt::Position final_pos =
-                        map->normalize(req.m_current.directional_offset(res.m_final_direction));
+                if (req.m_ship_id != res.m_ship_id)
+                    continue;
 
-                    if (final_pos == shipyard_pos)
-                        return true;
+                hlt::Position final_pos =
+                    map->normalize(req.m_current.directional_offset(res.m_final_direction));
 
-                    break;
-                }
+                if (final_pos == shipyard_pos)
+                    return true;
+
+                break;
             }
         }
 
@@ -636,16 +655,20 @@ namespace bot
 
     // MAIN
 
-    bool BotPlayer::shipyard_congested(const hlt::Player& me, const hlt::GameMap& map) const
+    // Congestion autour du shipyard
+    bool BotPlayer::shipyard_congested(const hlt::Player &me, const hlt::GameMap &map) const
     {
         hlt::Position yard_pos = me.shipyard->position;
         int nearby = 0;
-        for (const auto& ship_pair : me.ships)
+
+        // Compter les ships à proximité du shipyard
+        for (const auto &ship_pair : me.ships)
         {
             int d = map_utils::toroidal_distance(ship_pair.second->position, yard_pos, map.width, map.height);
             if (d <= constants::SPAWN_CONGESTION_RADIUS)
                 ++nearby;
         }
+
         return nearby >= constants::SPAWN_CONGESTION_LIMIT;
     }
 

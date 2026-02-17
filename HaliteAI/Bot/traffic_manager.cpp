@@ -13,6 +13,7 @@ namespace bot
         return inst;
     }
 
+    // Initialisation du TrafficManager avec les infos de la map et des ships
     void TrafficManager::init(
         hlt::GameMap &game_map,
         const std::vector<hlt::Position> &dropoff_positions,
@@ -25,6 +26,7 @@ namespace bot
         m_turns_remaining = turns_remaining;
     }
 
+    // Vérifie si une position est un dropoff
     bool TrafficManager::is_drop_cell(const hlt::Position &pos) const
     {
         for (const auto &dp : *m_drops_positions)
@@ -32,9 +34,11 @@ namespace bot
             if (pos == dp)
                 return true;
         }
+
         return false;
     }
 
+    // Ajuste les PRIORITY des MoveRequest selon la logique de priority
     void TrafficManager::adjust_priorities(std::vector<MoveRequest> &requests)
     {
         for (auto &req : requests)
@@ -43,42 +47,46 @@ namespace bot
             if (is_drop_cell(m_game_map->normalize(req.m_current)))
             {
                 req.m_priority = constants::SHIP_ON_DROPOFF_PRIORITY;
+                continue;
             }
+
             // Ship en URGENT RETURN
-            else if (req.m_priority >= constants::URGENT_RETURN_PRIORITY)
+            if (req.m_priority < constants::URGENT_RETURN_PRIORITY)
+                continue;
+
+            // Chercher le dropoff le plus proche
+            int min_dist = 9999;
+            for (const auto &dp : *m_drops_positions)
             {
-                // Chercher le dropoff le plus proche
-                int min_dist = 9999;
-                for (const auto &dp : *m_drops_positions)
-                {
-                    int d = m_game_map->calculate_distance(req.m_current, dp);
-                    if (d < min_dist)
-                        min_dist = d;
-                }
+                int d = m_game_map->calculate_distance(req.m_current, dp);
+                if (d < min_dist)
+                    min_dist = d;
+            }
 
-                // Si distance <= 2, c'est URGENT RETURN NEAR
-                if (min_dist <= 2)
-                {
-                    req.m_priority = constants::URGENT_RETURN_NEAR_PRIORITY;
-                }
+            // Si distance <= 2, c'est URGENT RETURN NEAR
+            if (min_dist <= 2)
+            {
+                req.m_priority = constants::URGENT_RETURN_NEAR_PRIORITY;
+            }
 
-                // Bonus de priorité pour les ships avec beaucoup de halite, pour les faire rentrer plus vite
-                auto ship_it = m_ships->find(req.m_ship_id);
-                if (ship_it != m_ships->end())
-                {
-                    int cargo_bonus = (ship_it->second->halite * 9) / hlt::constants::MAX_HALITE;
-                    req.m_priority += cargo_bonus;
-                }
+            // Bonus de priorité pour les ships avec beaucoup de halite, pour les faire rentrer plus vite
+            auto ship_it = m_ships->find(req.m_ship_id);
+            if (ship_it != m_ships->end())
+            {
+                int cargo_bonus = (ship_it->second->halite * 9) / hlt::constants::MAX_HALITE;
+                req.m_priority += cargo_bonus;
             }
         }
     }
 
+    // Résout les conflits de mouvement en fonction des priority
     void TrafficManager::resolve_conflicts(
         std::vector<MoveRequest> &requests,
         std::vector<MoveResult> &results,
         std::unordered_set<size_t> &resolved_indices)
     {
-        // Map de position normalisée -> indice du MoveRequest qui veut aller sur cette position
+
+        // Map de position normalisée -> index de MoveRequest
         std::unordered_map<hlt::Position, size_t> pos_to_index;
         for (size_t i = 0; i < requests.size(); ++i)
         {
@@ -91,11 +99,13 @@ namespace bot
             if (resolved_indices.count(i))
                 continue;
 
+            // Vérifier les conflits de mouvement : 2-cycles et 3-cycles
             hlt::Position desired_norm = m_game_map->normalize(requests[i].m_desired);
             auto it = pos_to_index.find(desired_norm);
             if (it == pos_to_index.end())
                 continue;
 
+            // Conflit potentiel avec la MoveRequest j
             size_t j = it->second;
             if (j == i || resolved_indices.count(j))
                 continue;
@@ -103,8 +113,10 @@ namespace bot
             hlt::Position j_desired_norm = m_game_map->normalize(requests[j].m_desired);
             hlt::Position i_current_norm = m_game_map->normalize(requests[i].m_current);
 
+            // 2-cycle : i et j veulent échanger leur position
             if (j_desired_norm == i_current_norm)
             {
+                // Résoudre le conflit en fonction des PRIORITY
                 if (requests[i].m_priority >= requests[j].m_priority)
                 {
                     results.push_back({requests[j].m_ship_id, hlt::Direction::STILL});
@@ -115,40 +127,47 @@ namespace bot
                     results.push_back({requests[i].m_ship_id, hlt::Direction::STILL});
                     resolved_indices.insert(i);
                 }
+
                 continue;
             }
 
+            // 3-cycle : i -> j -> k -> i
             auto it_k = pos_to_index.find(j_desired_norm);
             if (it_k == pos_to_index.end())
                 continue;
 
+            // Conflit potentiel avec la MoveRequest k
             size_t k = it_k->second;
             if (k == i || k == j || resolved_indices.count(k))
                 continue;
 
+            // Vérifier que k veut aller vers la position de i
             hlt::Position k_desired_norm = m_game_map->normalize(requests[k].m_desired);
-            if (k_desired_norm == i_current_norm)
+            if (k_desired_norm != i_current_norm)
+                continue;
+
+            int min_prio = std::min({requests[i].m_priority, requests[j].m_priority, requests[k].m_priority});
+
+            // Résoudre le conflit en forçant le STILL du ship avec la PRIORITY la plus basse
+            if (requests[i].m_priority == min_prio)
             {
-                int min_prio = std::min({requests[i].m_priority, requests[j].m_priority, requests[k].m_priority});
-                if (requests[i].m_priority == min_prio)
-                {
-                    results.push_back({requests[i].m_ship_id, hlt::Direction::STILL});
-                    resolved_indices.insert(i);
-                }
-                else if (requests[j].m_priority == min_prio)
-                {
-                    results.push_back({requests[j].m_ship_id, hlt::Direction::STILL});
-                    resolved_indices.insert(j);
-                }
-                else
-                {
-                    results.push_back({requests[k].m_ship_id, hlt::Direction::STILL});
-                    resolved_indices.insert(k);
-                }
+                results.push_back({requests[i].m_ship_id, hlt::Direction::STILL});
+                resolved_indices.insert(i);
+            }
+            else if (requests[j].m_priority == min_prio)
+            {
+                results.push_back({requests[j].m_ship_id, hlt::Direction::STILL});
+                resolved_indices.insert(j);
+            }
+            else
+            {
+                results.push_back({requests[k].m_ship_id, hlt::Direction::STILL});
+                resolved_indices.insert(k);
             }
         }
     }
 
+    // Résout tous les conflits de mouvement et choisit entre desired et alternatives
     std::vector<MoveResult> TrafficManager::resolve_all(std::vector<MoveRequest> &requests)
     {
         std::vector<MoveResult> results;
@@ -157,7 +176,6 @@ namespace bot
         if (requests.empty())
             return results;
 
-        // Ajuste les PRIORITY des MoveRequest
         adjust_priorities(requests);
 
         // Trie des indices par PRIORITY décroissante
@@ -184,11 +202,11 @@ namespace bot
         {
             for (const auto &req : requests)
             {
-                if (req.m_ship_id == result.m_ship_id)
-                {
-                    occupied_positions.insert(m_game_map->normalize(req.m_current));
-                    break;
-                }
+                if (req.m_ship_id != result.m_ship_id)
+                    continue;
+
+                occupied_positions.insert(m_game_map->normalize(req.m_current));
+                break;
             }
         }
 
@@ -247,6 +265,7 @@ namespace bot
         return results;
     }
 
+    // Forcer le STILL des ships qui n'ont pas assez de halite pour bouger
     void TrafficManager::manage_stuck_ships(
         std::vector<MoveRequest> &requests,
         std::vector<MoveResult> &results,

@@ -24,19 +24,19 @@ namespace bot
         TrafficManager(const TrafficManager &) = delete;
         TrafficManager &operator=(const TrafficManager &) = delete;
 
-        /// Initialise le contexte du tour courant
+        // Initialise le contexte du tour courant
         void init(hlt::GameMap &game_map,
                   const std::vector<hlt::Position> &drops_positions,
                   const std::unordered_map<hlt::EntityId, std::shared_ptr<hlt::Ship>> &ships,
                   int turns_remaining);
 
-        /// Résout tous les conflits de mouvement
+        // Résout tous les conflits de mouvement
         std::vector<MoveResult> resolve_all(std::vector<MoveRequest> &requests);
 
     private:
         TrafficManager() = default;
 
-        /// Verif si une position est un drop
+        // Verif si une position est un drop
         bool is_drop_cell(const hlt::Position &pos) const;
 
         // Ajuste les priorités des MoveRequests selon la situation

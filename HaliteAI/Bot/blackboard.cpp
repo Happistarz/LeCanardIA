@@ -56,6 +56,7 @@ namespace bot
         // Pass horizontal avec wrap-around
         for (int y = 0; y < h; ++y)
         {
+            // gauche à droite
             double acc = 0.0;
             for (int x = 0; x < w * 2; ++x)
             {
@@ -63,6 +64,8 @@ namespace bot
                 acc = acc * (1.0 - alpha) + game_map.cells[y][rx].halite * alpha;
                 temp[y][rx] += acc;
             }
+
+            // droite à gauche
             acc = 0.0;
             for (int x = w * 2 - 1; x >= 0; --x)
             {
@@ -76,6 +79,7 @@ namespace bot
         std::vector<std::vector<double>> result(h, std::vector<double>(w, 0.0));
         for (int x = 0; x < w; ++x)
         {
+            // haut à bas
             double acc = 0.0;
             for (int y = 0; y < h * 2; ++y)
             {
@@ -83,6 +87,8 @@ namespace bot
                 acc = acc * (1.0 - alpha) + temp[ry][x] * alpha;
                 result[ry][x] += acc;
             }
+
+            // bas à haut
             acc = 0.0;
             for (int y = h * 2 - 1; y >= 0; --y)
             {
@@ -92,6 +98,7 @@ namespace bot
             }
         }
 
+        // Normalisation et conversion en int
         for (int y = 0; y < h; ++y)
             for (int x = 0; x < w; ++x)
                 halite_heatmap[y][x] = static_cast<int>(result[y][x]);
@@ -105,13 +112,16 @@ namespace bot
         int remaining = cell_halite;
         int cargo = ship_cargo;
         int min_marginal = average_halite / 8;
-        if (min_marginal < 1) min_marginal = 1;
+        if (min_marginal < 1)
+            min_marginal = 1;
 
+        // Pour chaque tour de mining, on calcule le gain marginal et on arrete si il devient trop faible
         while (remaining > 0 && cargo < hlt::constants::MAX_HALITE)
         {
             int extract_ratio = inspired ? hlt::constants::INSPIRED_EXTRACT_RATIO : hlt::constants::EXTRACT_RATIO;
             int base = remaining / extract_ratio;
-            if (base == 0) break;
+            if (base == 0)
+                break;
 
             int gain = base;
             if (inspired)
@@ -128,10 +138,60 @@ namespace bot
             cargo += gain;
             remaining -= base;
             turns++;
-            if (turns >= 12) break;
+            if (turns >= 12)
+                break;
         }
 
         return {extracted, turns > 0 ? turns : 1};
+    }
+
+    // Score HPT d'une cell candidate pour l'exploration
+    int Blackboard::score_explore_candidate(const hlt::GameMap &game_map,
+                                            const hlt::Position &candidate,
+                                            int dist, int ship_cargo, int avg_move_burn,
+                                            const std::vector<hlt::Position> &drop_positions) const
+    {
+        int w = game_map.width;
+        int h = game_map.height;
+
+        int cell_halite = game_map.cells[candidate.y][candidate.x].halite;
+        bool inspired = inspired_zones.find(candidate) != inspired_zones.end();
+        MiningEstimate est = estimate_mining(cell_halite, ship_cargo, inspired);
+
+        int return_dist = dist;
+        if (!drop_positions.empty())
+        {
+            hlt::Position nearest_drop = map_utils::closest_position(candidate, drop_positions, w, h);
+            int dd = map_utils::toroidal_distance(candidate, nearest_drop, w, h);
+            if (dd < return_dist)
+                return_dist = dd;
+        }
+
+        // Halite net gagné, penalité de déplacement, et bonus pour les zones denses
+        int net_halite = est.halite_extracted - dist * avg_move_burn - return_dist * avg_move_burn;
+        if (net_halite <= 0)
+            return -1;
+
+        // Temps total = aller + mine + retour
+        int total_time = dist + est.mine_turns + return_dist;
+        if (total_time <= 0)
+            total_time = 1;
+
+        // Score HPT de la cell candidate
+        int score = (net_halite * 100) / total_time;
+
+        // Tiebreaker heatmap pour les zones denses
+        score += halite_heatmap[candidate.y][candidate.x] / 100;
+
+        if (recent_dropoff_pos.x < 0 || recent_dropoff_age < 0)
+            return score; // Pas de boost si pas de dropoff recent
+
+        int rd_dist = map_utils::toroidal_distance(candidate, recent_dropoff_pos, w, h);
+        if (rd_dist > constants::DROPOFF_REDIRECT_RADIUS)
+            return score; // Pas de boost si trop loin
+
+        int proximity_bonus = (constants::DROPOFF_REDIRECT_RADIUS - rd_dist + 1);
+        return score * (constants::DROPOFF_REDIRECT_BOOST + proximity_bonus) / constants::DROPOFF_REDIRECT_BOOST;
     }
 
     // Score HPT = halite_net / (travel + mine + return)
@@ -164,44 +224,7 @@ namespace bot
                 if (it != targeted_cells.end() && it->second != ship_id)
                     continue;
 
-                int cell_halite = game_map.cells[ny][nx].halite;
-                bool inspired = inspired_zones.find(candidate) != inspired_zones.end();
-
-                MiningEstimate est = estimate_mining(cell_halite, ship_cargo, inspired);
-
-                // Dist retour = min vers un drop
-                int return_dist = dist;
-                for (const auto& drop : drop_positions)
-                {
-                    int dd = map_utils::toroidal_distance(candidate, drop, w, h);
-                    if (dd < return_dist) return_dist = dd;
-                }
-
-                // HPT net = (extracted - burns) / temps_total
-                int travel_burn = dist * avg_move_burn;
-                int return_burn = return_dist * avg_move_burn;
-                int net_halite = est.halite_extracted - travel_burn - return_burn;
-                if (net_halite <= 0)
-                    continue;
-
-                int total_time = dist + est.mine_turns + return_dist;
-                if (total_time <= 0) total_time = 1;
-
-                int effective_score = (net_halite * 100) / total_time;
-
-                // Tiebreaker heatmap pour les zones denses
-                effective_score += halite_heatmap[ny][nx] / 100;
-
-                if (recent_dropoff_pos.x >= 0 && recent_dropoff_age >= 0)
-                {
-                    int rd_dist = map_utils::toroidal_distance(candidate, recent_dropoff_pos, w, h);
-                    if (rd_dist <= constants::DROPOFF_REDIRECT_RADIUS)
-                    {
-                        int proximity_bonus = (constants::DROPOFF_REDIRECT_RADIUS - rd_dist + 1);
-                        effective_score = effective_score * (constants::DROPOFF_REDIRECT_BOOST + proximity_bonus) / constants::DROPOFF_REDIRECT_BOOST;
-                    }
-                }
-
+                int effective_score = score_explore_candidate(game_map, candidate, dist, ship_cargo, avg_move_burn, drop_positions);
                 if (effective_score > best_score)
                 {
                     best_score = effective_score;
@@ -211,6 +234,19 @@ namespace bot
         }
 
         return best_pos;
+    }
+
+    bool Blackboard::is_too_close_to_depots(const hlt::Position &pos,
+                                            const std::vector<hlt::Position> &depots,
+                                            int min_distance, int w, int h) const
+    {
+        for (const auto &depot : depots)
+        {
+            if (map_utils::toroidal_distance(pos, depot, w, h) < min_distance)
+                return true;
+        }
+
+        return false;
     }
 
     // Meilleur spot dropoff : halite reel + dominance allies + bonus ships proches
@@ -231,55 +267,25 @@ namespace bot
             {
                 hlt::Position candidate(x, y);
 
-                bool too_close = false;
-                for (const auto &depot : existing_depots)
-                {
-                    int dist = map_utils::toroidal_distance(candidate, depot, w, h);
-                    if (dist < min_depot_distance)
-                    {
-                        too_close = true;
-                        break;
-                    }
-                }
-                if (too_close)
+                if (is_too_close_to_depots(candidate, existing_depots, min_depot_distance, w, h))
                     continue;
 
-                // Somme halite reel dans le rayon
-                int real_halite = 0;
-                for (int dy2 = -dropoff_radius; dy2 <= dropoff_radius; ++dy2)
-                {
-                    for (int dx2 = -dropoff_radius; dx2 <= dropoff_radius; ++dx2)
-                    {
-                        int md = std::abs(dx2) + std::abs(dy2);
-                        if (md > dropoff_radius) continue;
-                        int nx = ((x + dx2) % w + w) % w;
-                        int ny = ((y + dy2) % h + h) % h;
-                        real_halite += game_map.cells[ny][nx].halite;
-                    }
-                }
+                int real_halite = map_utils::sum_halite_in_radius(game_map, candidate, dropoff_radius);
 
                 // Dominance : allies vs ennemis
-                int allies_nearby = 0;
-                int enemies_nearby = 0;
-                for (const auto &apos : allied_positions)
-                {
-                    if (map_utils::toroidal_distance(candidate, apos, w, h) <= dropoff_radius)
-                        allies_nearby++;
-                }
-                for (const auto &enemy : enemy_ships)
-                {
-                    if (map_utils::toroidal_distance(candidate, enemy.position, w, h) <= dropoff_radius)
-                        enemies_nearby++;
-                }
+                std::vector<hlt::Position> enemy_pos;
+                enemy_pos.reserve(enemy_ships.size());
+                for (const auto &e : enemy_ships)
+                    enemy_pos.push_back(e.position);
+
+                int allies_nearby = map_utils::count_in_radius(candidate, allied_positions, dropoff_radius, w, h);
+                int enemies_nearby = map_utils::count_in_radius(candidate, enemy_pos, dropoff_radius, w, h);
 
                 // Zone dominee par ennemis, skip
                 if (enemies_nearby > allies_nearby + 1)
                     continue;
 
-                // Bonus allies proches
-                int ally_bonus = allies_nearby * 500;
-
-                int score = real_halite + ally_bonus;
+                int score = real_halite + allies_nearby * 500;
                 if (score > best_score)
                 {
                     best_score = score;
@@ -335,15 +341,16 @@ namespace bot
                 for (const auto &enemy : enemy_ships)
                 {
                     int dist = map_utils::toroidal_distance(pos, enemy.position, map_width, map_height);
-                    if (dist <= radius)
-                    {
-                        ++count;
-                        if (count >= needed)
-                        {
-                            inspired_zones.insert(pos);
-                            break;
-                        }
-                    }
+                    if (dist > radius)
+                        continue;
+
+                    ++count;
+
+                    if (count < needed)
+                        continue;
+
+                    inspired_zones.insert(pos);
+                    break;
                 }
             }
         }
@@ -367,14 +374,15 @@ namespace bot
         {
             for (const auto &enemy : enemy_ships)
             {
-                if (enemy.id == ht_it->second &&
-                    enemy.halite >= constants::HUNT_MIN_ENEMY_HALITE / 2)
-                {
-                    int dist = map_utils::toroidal_distance(ship_pos, enemy.position, w, h);
-                    if (dist <= search_radius * 2)
-                        return enemy.position;
-                }
+                if (enemy.id != ht_it->second &&
+                    enemy.halite < constants::HUNT_MIN_ENEMY_HALITE / 2)
+                    continue;
+
+                int dist = map_utils::toroidal_distance(ship_pos, enemy.position, w, h);
+                if (dist <= search_radius * 2)
+                    return enemy.position;
             }
+
             hunt_targets.erase(ht_it);
         }
 
@@ -398,12 +406,13 @@ namespace bot
             {
                 if (other.id == enemy.id)
                     continue;
-                if (other.halite < constants::DEFENDER_MAX_HALITE)
-                {
-                    int d = map_utils::toroidal_distance(other.position, enemy.position, w, h);
-                    if (d <= constants::HUNT_DEFENDER_RADIUS)
-                        ++defender_count;
-                }
+
+                if (other.halite >= constants::DEFENDER_MAX_HALITE)
+                    continue;
+
+                int d = map_utils::toroidal_distance(other.position, enemy.position, w, h);
+                if (d <= constants::HUNT_DEFENDER_RADIUS)
+                    ++defender_count;
             }
 
             int score = enemy.halite - dist * 100 - defender_count * 300;
@@ -433,13 +442,13 @@ namespace bot
 
         for (const auto &enemy : enemy_ships)
         {
-            if (enemy.halite < ship_halite)
-            {
-                int dist = map_utils::toroidal_distance(ship_pos, enemy.position, w, h);
-                if (dist <= constants::FLEE_THREAT_RADIUS)
-                    return true;
-            }
+            if (enemy.halite >= ship_halite)
+                continue;
+            int dist = map_utils::toroidal_distance(ship_pos, enemy.position, w, h);
+            if (dist <= constants::FLEE_THREAT_RADIUS)
+                return true;
         }
+
         return false;
     }
 } // namespace bot

@@ -90,7 +90,7 @@ namespace bot
         /// Tous les ships ennemis du tour
         std::vector<EnemyShipInfo> enemy_ships;
 
-        /// Cibles de chasse : my_ship → enemy_id
+        /// Cibles de chasse : my_ship -> enemy_id
         std::map<hlt::EntityId, hlt::EntityId> hunt_targets;
 
         /// Best target de chasse (-1,-1 si rien)
@@ -140,6 +140,11 @@ namespace bot
             const std::vector<hlt::Position> &existing_depots,
             int min_depot_distance) const;
 
+        /// Verifie si une position est trop proche des depots existants
+        bool is_too_close_to_depots(const hlt::Position &pos,
+                                     const std::vector<hlt::Position> &depots,
+                                     int min_distance, int w, int h) const;
+
         std::vector<std::vector<int>> halite_heatmap;
 
         /// Targets persistants
@@ -157,6 +162,12 @@ namespace bot
                                                hlt::EntityId ship_id,
                                                int ship_cargo,
                                                const std::vector<hlt::Position> &drop_positions) const;
+
+        /// Score HPT d'une cell candidate pour l'exploration
+        int score_explore_candidate(const hlt::GameMap &game_map,
+                                     const hlt::Position &candidate,
+                                     int dist, int ship_cargo, int avg_move_burn,
+                                     const std::vector<hlt::Position> &drop_positions) const;
     };
 
 } // namespace bot

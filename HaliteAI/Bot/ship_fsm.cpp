@@ -5,30 +5,39 @@
 
 namespace bot
 {
+    // TRANSITION CALLBACKS
+
     float ShipFSM::transition_is_full(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
+
         // Classique : ship plein a 90%
         if (ctx->ship->halite >= hlt::constants::MAX_HALITE * constants::HALITE_FILL_THRESHOLD)
             return 1.0f;
 
         // Si le rendement du trajet retour (cargo / dist) est meilleur que 2x le rendement moyen d'extraction par tour, return
         const Blackboard &bb = Blackboard::get_instance();
-        int dist = ctx->game_map->calculate_distance(ctx->ship->position, ctx->drop_position);
-        if (dist > 0 && ctx->ship->halite > 0)
-        {
-            int halite_per_turn_returning = ctx->ship->halite / dist;
-            int avg_mining_yield = bb.average_halite / hlt::constants::EXTRACT_RATIO;
 
-            if (halite_per_turn_returning > avg_mining_yield * 2)
-                return 1.0f;
-        }
+        // Distance au dropoff
+        int dist = ctx->game_map->calculate_distance(ctx->ship->position, ctx->drop_position);
+        if (dist <= 0 || ctx->ship->halite <= 0)
+            return 0.0f;
+
+        // Halite par tour en retournant maintenant
+        int halite_per_turn_returning = ctx->ship->halite / dist;
+        int avg_mining_yield = bb.average_halite / hlt::constants::EXTRACT_RATIO;
+
+        if (halite_per_turn_returning > avg_mining_yield * 2)
+            return 1.0f;
+
         return 0.0f;
     }
 
+    // Si on est proche du dropoff et qu'on a un bon cargo, on peut retourner vite
     float ShipFSM::transition_close_and_loaded(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
+
         int dist = ctx->game_map->calculate_distance(ctx->ship->position, ctx->drop_position);
 
         if (dist <= constants::SMART_RETURN_MAX_DIST &&
@@ -51,7 +60,7 @@ namespace bot
         if (inspired)
             extract_ratio = hlt::constants::INSPIRED_EXTRACT_RATIO;
 
-        // Marginal = halite qu'on extrairait ce tour (avec inspiration)
+        // Marginal = halite qu'on extrairait ce tour
         int marginal = cell_halite / extract_ratio;
         if (inspired)
             marginal += static_cast<int>(marginal * hlt::constants::INSPIRED_BONUS_MULTIPLIER);
@@ -62,6 +71,7 @@ namespace bot
         // Cell encore rentable, on peut rester
         if (marginal > avg_yield)
             return 0.5f;
+
         return 0.0f;
     }
 
@@ -70,6 +80,7 @@ namespace bot
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
         const Blackboard &bb = Blackboard::get_instance();
+
         int cell_halite = ctx->game_map->at(ctx->ship->position)->halite;
         int extract_ratio = hlt::constants::EXTRACT_RATIO;
 
@@ -90,6 +101,7 @@ namespace bot
         return 0.0f;
     }
 
+    // Si on est sur le dropoff, on peut switch de suite en explore pour repartir miner
     float ShipFSM::transition_at_shipyard(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
@@ -99,6 +111,7 @@ namespace bot
         return 0.0f;
     }
 
+    // Si on est a moins de SAFE_RETURN_TURNS du game end, il faut retourner absolument
     float ShipFSM::transition_urgent_return(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
@@ -110,11 +123,13 @@ namespace bot
         return 0.0f;
     }
 
+    // Transition toujours valide
     float ShipFSM::transition_always(void *data)
     {
         return 1.0f;
     }
 
+    // Si on est en phase de chasse et qu'on a une cible valide a portee, switch en hunt
     float ShipFSM::transition_should_hunt(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
@@ -135,17 +150,19 @@ namespace bot
         // Chercher un enemy plein a portee
         for (const auto &enemy : bb.enemy_ships)
         {
-            if (enemy.halite >= constants::HUNT_MIN_ENEMY_HALITE)
-            {
-                int dist = ctx->game_map->calculate_distance(ctx->ship->position, enemy.position);
+            if (enemy.halite < constants::HUNT_MIN_ENEMY_HALITE)
+                continue;
 
-                if (dist <= search_radius)
-                    return 0.8f;
-            }
+            int dist = ctx->game_map->calculate_distance(ctx->ship->position, enemy.position);
+
+            if (dist <= search_radius)
+                return 0.8f;
         }
+
         return 0.0f;
     }
 
+    // Si on est en chasse mais qu'on n'a plus de cible valide, retourner en explore
     float ShipFSM::transition_should_flee(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
@@ -157,6 +174,7 @@ namespace bot
         return 0.0f;
     }
 
+    // Si on est en chasse mais qu'on a plus de cible valide, retourner en explore
     float ShipFSM::transition_no_hunt_target(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
@@ -173,9 +191,11 @@ namespace bot
             if (enemy.id == ht_it->second && enemy.halite >= constants::HUNT_MIN_ENEMY_HALITE / 2)
                 return 0.0f; // target encore valide
         }
+
         return 0.5f; // target perdue
     }
 
+    // Si on est en flee mais qu'il y a plus de menace proche, on peut retourner en explore
     float ShipFSM::transition_no_threat(void *data)
     {
         auto *ctx = static_cast<ShipFSMContext *>(data);
@@ -340,8 +360,9 @@ namespace bot
         delete m_trans_hunt_to_flee;
     }
 
+    // Update le FSM et execute le behavior du current state, retourne le MoveRequest genere
     MoveRequest ShipFSM::update(std::shared_ptr<hlt::Ship> ship, hlt::GameMap &game_map,
-                                 const hlt::Position &depot_position, int turns_remaining)
+                                const hlt::Position &depot_position, int turns_remaining)
     {
         ShipFSMContext context;
         context.ship = ship;

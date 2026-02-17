@@ -57,6 +57,74 @@ namespace bot
         }
     }
 
+    // Trier les directions alternatives par halite decroissant
+    static std::vector<hlt::Direction> rank_adjacent_directions(
+        std::shared_ptr<hlt::Ship> ship, hlt::GameMap &game_map, hlt::Direction exclude)
+    {
+        std::vector<std::pair<int, hlt::Direction>> scored;
+        for (const auto &dir : hlt::ALL_CARDINALS)
+        {
+            if (dir == exclude) continue;
+            hlt::Position pos = ship->position.directional_offset(dir);
+            scored.push_back({game_map.at(pos)->halite, dir});
+        }
+        std::sort(scored.begin(), scored.end(),
+                  [](const auto &a, const auto &b) { return a.first > b.first; });
+
+        std::vector<hlt::Direction> result;
+        for (const auto &s : scored)
+            result.push_back(s.second);
+        return result;
+    }
+
+    // Fallback explore : meilleure case adjacente
+    static MoveRequest explore_best_adjacent(std::shared_ptr<hlt::Ship> ship, hlt::GameMap &game_map)
+    {
+        int max_halite = -1;
+        hlt::Direction best_direction = hlt::Direction::STILL;
+        hlt::Position best_adj = ship->position;
+
+        for (const auto &direction : hlt::ALL_CARDINALS)
+        {
+            hlt::Position target_pos = ship->position.directional_offset(direction);
+            int cell_halite = game_map.at(target_pos)->halite;
+            if (cell_halite > max_halite)
+            {
+                max_halite = cell_halite;
+                best_adj = target_pos;
+                best_direction = direction;
+            }
+        }
+
+        if (best_adj == ship->position)
+        {
+            std::vector<hlt::Direction> alternatives(hlt::ALL_CARDINALS.begin(), hlt::ALL_CARDINALS.end());
+            return MoveRequest{ship->id, ship->position, ship->position,
+                               hlt::Direction::STILL, constants::EXPLORE_PRIORITY, alternatives};
+        }
+
+        auto alternatives = rank_adjacent_directions(ship, game_map, best_direction);
+        return MoveRequest{ship->id, ship->position, best_adj,
+                           best_direction, constants::EXPLORE_PRIORITY, alternatives};
+    }
+
+    // Collecte les menaces proches d'un ship
+    static std::vector<hlt::Position> collect_nearby_threats(
+        const Blackboard &bb, std::shared_ptr<hlt::Ship> ship, hlt::GameMap &game_map)
+    {
+        std::vector<hlt::Position> threats;
+        for (const auto &enemy : bb.enemy_ships)
+        {
+            if (enemy.halite < ship->halite)
+            {
+                int dist = game_map.calculate_distance(ship->position, enemy.position);
+                if (dist <= constants::FLEE_THREAT_RADIUS + 1)
+                    threats.push_back(enemy.position);
+            }
+        }
+        return threats;
+    }
+
     // EXPLORE
     MoveRequest ShipExploreState::execute(std::shared_ptr<hlt::Ship> ship,
                                           hlt::GameMap &game_map, const hlt::Position &shipyard_position)
@@ -115,49 +183,7 @@ namespace bot
         }
 
         // Fallback : meilleure case adjacente
-        int max_halite = -1;
-        hlt::Direction best_direction = hlt::Direction::STILL;
-        hlt::Position best_adj = ship->position;
-
-        for (const auto &direction : hlt::ALL_CARDINALS)
-        {
-            hlt::Position target_pos = ship->position.directional_offset(direction);
-            int cell_halite = game_map.at(target_pos)->halite;
-
-            if (cell_halite > max_halite)
-            {
-                max_halite = cell_halite;
-                best_adj = target_pos;
-                best_direction = direction;
-            }
-        }
-
-        if (best_adj == ship->position)
-        {
-            std::vector<hlt::Direction> alternatives(hlt::ALL_CARDINALS.begin(), hlt::ALL_CARDINALS.end());
-            return MoveRequest{ship->id, ship->position, ship->position,
-                               hlt::Direction::STILL, constants::EXPLORE_PRIORITY, alternatives};
-        }
-
-        std::vector<std::pair<int, hlt::Direction>> scored_dirs;
-        for (const auto &direction : hlt::ALL_CARDINALS)
-        {
-            if (direction == best_direction)
-                continue;
-            hlt::Position alt_pos = ship->position.directional_offset(direction);
-            scored_dirs.push_back({game_map.at(alt_pos)->halite, direction});
-        }
-
-        std::sort(scored_dirs.begin(), scored_dirs.end(),
-                  [](const auto &a, const auto &b)
-                  { return a.first > b.first; });
-
-        std::vector<hlt::Direction> alternatives;
-        for (const auto &sd : scored_dirs)
-            alternatives.push_back(sd.second);
-
-        return MoveRequest{ship->id, ship->position, best_adj,
-                           best_direction, constants::EXPLORE_PRIORITY, alternatives};
+        return explore_best_adjacent(ship, game_map);
     }
 
     // COLLECT : gain marginal vs rendement moyen par tour
@@ -196,21 +222,7 @@ namespace bot
         }
 
         // Cell encore rentable, on reste
-        std::vector<std::pair<int, hlt::Direction>> scored_dirs;
-        for (const auto &direction : hlt::ALL_CARDINALS)
-        {
-            hlt::Position alt_pos = ship->position.directional_offset(direction);
-            scored_dirs.push_back({game_map.at(alt_pos)->halite, direction});
-        }
-
-        std::sort(scored_dirs.begin(), scored_dirs.end(),
-                  [](const auto &a, const auto &b)
-                  { return a.first > b.first; });
-
-        std::vector<hlt::Direction> alternatives;
-        for (const auto &sd : scored_dirs)
-            alternatives.push_back(sd.second);
-
+        auto alternatives = rank_adjacent_directions(ship, game_map, hlt::Direction::STILL);
         return MoveRequest{ship->id, ship->position, ship->position,
                            hlt::Direction::STILL, constants::COLLECT_PRIORITY, alternatives};
     }
@@ -235,17 +247,7 @@ namespace bot
     {
         const Blackboard &bb = Blackboard::get_instance();
 
-        // Menaces proches
-        std::vector<hlt::Position> threats;
-        for (const auto &enemy : bb.enemy_ships)
-        {
-            if (enemy.halite < ship->halite)
-            {
-                int dist = game_map.calculate_distance(ship->position, enemy.position);
-                if (dist <= constants::FLEE_THREAT_RADIUS + 1)
-                    threats.push_back(enemy.position);
-            }
-        }
+        std::vector<hlt::Position> threats = collect_nearby_threats(bb, ship, game_map);
 
         // Plus de menace, retour normal
         if (threats.empty())

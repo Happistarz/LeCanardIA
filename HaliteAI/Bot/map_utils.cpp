@@ -5,6 +5,48 @@ namespace bot
 {
     namespace map_utils
     {
+        int sum_halite_in_radius(const hlt::GameMap &game_map,
+                                 const hlt::Position &center, int radius)
+        {
+            int w = game_map.width;
+            int h = game_map.height;
+            int total = 0;
+
+            for (int dy = -radius; dy <= radius; ++dy)
+            {
+                for (int dx = -radius; dx <= radius; ++dx)
+                {
+                    if (std::abs(dx) + std::abs(dy) > radius)
+                        continue;
+
+                    // Wrap-around toroidal
+                    int nx = ((center.x + dx) % w + w) % w;
+
+                    // Wrap-around toroidal
+                    int ny = ((center.y + dy) % h + h) % h;
+
+                    total += game_map.cells[ny][nx].halite;
+                }
+            }
+
+            return total;
+        }
+
+        int count_in_radius(const hlt::Position &center,
+                            const std::vector<hlt::Position> &positions,
+                            int radius, int width, int height)
+        {
+            int count = 0;
+
+            for (const auto &pos : positions)
+            {
+                if (toroidal_distance(center, pos, width, height) <= radius)
+                    ++count;
+            }
+
+            return count;
+        }
+
         void navigate_toward(std::shared_ptr<hlt::Ship> ship,
                              hlt::GameMap &game_map,
                              const hlt::Position &destination,
@@ -19,6 +61,7 @@ namespace bot
             {
                 out_best_dir = hlt::Direction::STILL;
                 out_alternatives.assign(hlt::ALL_CARDINALS.begin(), hlt::ALL_CARDINALS.end());
+
                 return;
             }
 
@@ -45,6 +88,7 @@ namespace bot
                 hlt::Position target = game_map.normalize(ship->position.directional_offset(dir));
                 int dist = game_map.calculate_distance(target, destination);
                 int cost = (game_map.at(target)->halite / hlt::constants::MOVE_COST_RATIO) * cost_weight;
+
                 bool stuck = stuck_positions.find(target) != stuck_positions.end();
                 bool dangerous = danger_zones.find(target) != danger_zones.end();
                 bool optimal = false;
@@ -78,6 +122,7 @@ namespace bot
 
             out_best_dir = scored[0].dir;
             out_alternatives.clear();
+
             for (size_t i = 1; i < scored.size(); ++i)
                 out_alternatives.push_back(scored[i].dir);
         }
