@@ -116,6 +116,13 @@ namespace bot
                 hlt::Position norm_pos = game_map->normalize(ship_pair.second->position);
                 bb.danger_zones.insert(norm_pos);
                 bb.enemy_ships.push_back({ ship_pair.first, norm_pos, ship_pair.second->halite });
+                // Marquer les 4 adjacents si l'ennemi peut bouger (assez de halite)
+                int cell_h = game_map->at(norm_pos)->halite;
+                int move_cost = cell_h / hlt::constants::MOVE_COST_RATIO;
+                if (ship_pair.second->halite >= move_cost) {
+                    for (const auto& adj : norm_pos.get_surrounding_cardinals())
+                        bb.danger_zones.insert(game_map->normalize(adj));
+                }
             }
 
             bb.danger_zones.insert(game_map->normalize(player->shipyard->position));

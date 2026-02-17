@@ -95,8 +95,8 @@ namespace bot
             }
         }
 
-        // Chercher une nouvelle target via la heatmap
-        hlt::Position target = bb.find_best_explore_target(game_map, ship->position, ship->id, bb.drop_positions);
+        // Target via HPT : simule extraction + cout aller/retour pour chaque cell candidate
+        hlt::Position target = bb.find_best_explore_target(game_map, ship->position, ship->id, ship->halite, bb.drop_positions);
 
         if (target != ship->position)
         {

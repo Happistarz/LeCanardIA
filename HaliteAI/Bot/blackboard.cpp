@@ -74,16 +74,56 @@ namespace bot
         }
     }
 
+    // Simule extraction tour par tour, stoppe quand le marginal < avg/8 ou cargo full
+    MiningEstimate Blackboard::estimate_mining(int cell_halite, int ship_cargo, bool inspired) const
+    {
+        int extracted = 0;
+        int turns = 0;
+        int remaining = cell_halite;
+        int cargo = ship_cargo;
+        int min_marginal = average_halite / 8;
+        if (min_marginal < 1) min_marginal = 1;
+
+        while (remaining > 0 && cargo < hlt::constants::MAX_HALITE)
+        {
+            int extract_ratio = inspired ? hlt::constants::INSPIRED_EXTRACT_RATIO : hlt::constants::EXTRACT_RATIO;
+            int base = remaining / extract_ratio;
+            if (base == 0) break;
+
+            int gain = base;
+            if (inspired)
+                gain += static_cast<int>(base * hlt::constants::INSPIRED_BONUS_MULTIPLIER);
+
+            // Rendement marginal trop faible, on arrete de miner
+            if (gain < min_marginal && turns > 0)
+                break;
+
+            if (cargo + gain > hlt::constants::MAX_HALITE)
+                gain = hlt::constants::MAX_HALITE - cargo;
+
+            extracted += gain;
+            cargo += gain;
+            remaining -= base;
+            turns++;
+            if (turns >= 12) break;
+        }
+
+        return {extracted, turns > 0 ? turns : 1};
+    }
+
+    // Score HPT = halite_net / (travel + mine + return)
     hlt::Position Blackboard::find_best_explore_target(const hlt::GameMap &game_map,
                                                        const hlt::Position &ship_pos,
                                                        hlt::EntityId ship_id,
+                                                       int ship_cargo,
                                                        const std::vector<hlt::Position> &drop_positions) const
     {
         int w = game_map.width;
         int h = game_map.height;
-
         int best_score = -1;
         hlt::Position best_pos = ship_pos;
+        int move_cost_ratio = hlt::constants::MOVE_COST_RATIO > 0 ? hlt::constants::MOVE_COST_RATIO : 10;
+        int avg_move_burn = average_halite / move_cost_ratio;
 
         for (int dy = -constants::EXPLORE_SEARCH_RADIUS; dy <= constants::EXPLORE_SEARCH_RADIUS; ++dy)
         {
@@ -97,39 +137,48 @@ namespace bot
                 int ny = ((ship_pos.y + dy) % h + h) % h;
                 hlt::Position candidate(nx, ny);
 
-                // Skip les cells deja target par un autre ship
                 auto it = targeted_cells.find(candidate);
                 if (it != targeted_cells.end() && it->second != ship_id)
                     continue;
 
-                int heatmap_val = halite_heatmap[ny][nx];
+                int cell_halite = game_map.cells[ny][nx].halite;
+                bool inspired = inspired_zones.find(candidate) != inspired_zones.end();
 
-                if (inspired_zones.find(candidate) != inspired_zones.end())
-                    heatmap_val = heatmap_val * 3;
+                // Simulation extraction sur la cell candidate
+                MiningEstimate est = estimate_mining(cell_halite, ship_cargo, inspired);
 
+                // Distance retour = min dist vers un drop depuis la candidate
+                int return_dist = dist;
                 for (const auto& drop : drop_positions)
                 {
-                    int drop_dist = map_utils::toroidal_distance(candidate, drop, w, h);
-                    if (drop_dist <= constants::HEATMAP_RADIUS)
-                        heatmap_val = heatmap_val * 3 / 2;
+                    int dd = map_utils::toroidal_distance(candidate, drop, w, h);
+                    if (dd < return_dist) return_dist = dd;
                 }
 
-                // Boost temporaire pour les cells proches d'un dropoff recent (attire les ships)
+                // HPT = (extracted - burn_aller - burn_retour) * 100 / temps_total
+                int travel_burn = dist * avg_move_burn;
+                int return_burn = return_dist * avg_move_burn;
+                int net_halite = est.halite_extracted - travel_burn - return_burn;
+                if (net_halite <= 0)
+                    continue;
+
+                int total_time = dist + est.mine_turns + return_dist;
+                if (total_time <= 0) total_time = 1;
+
+                int effective_score = (net_halite * 100) / total_time;
+
+                // Tiebreaker leger via heatmap pour favoriser les zones denses
+                effective_score += halite_heatmap[ny][nx] / 100;
+
                 if (recent_dropoff_pos.x >= 0 && recent_dropoff_age >= 0)
                 {
                     int rd_dist = map_utils::toroidal_distance(candidate, recent_dropoff_pos, w, h);
                     if (rd_dist <= constants::DROPOFF_REDIRECT_RADIUS)
                     {
                         int proximity_bonus = (constants::DROPOFF_REDIRECT_RADIUS - rd_dist + 1);
-                        heatmap_val = heatmap_val * (constants::DROPOFF_REDIRECT_BOOST + proximity_bonus) / constants::DROPOFF_REDIRECT_BOOST;
+                        effective_score = effective_score * (constants::DROPOFF_REDIRECT_BOOST + proximity_bonus) / constants::DROPOFF_REDIRECT_BOOST;
                     }
                 }
-
-                // Penalite pour la distance : favoriser les cells proches pour reduire le temps de voyage
-                int travel_cost = dist * (average_halite / (hlt::constants::MOVE_COST_RATIO > 0 ? hlt::constants::MOVE_COST_RATIO : 10));
-                int net_score = heatmap_val - travel_cost;
-                if (net_score < 0) net_score = 0;
-                int effective_score = net_score / (dist + 1);
 
                 if (effective_score > best_score)
                 {

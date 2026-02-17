@@ -31,6 +31,13 @@ namespace bot
         int halite;
     };
 
+    /// Resultat d'une simulation d'extraction sur une cell
+    struct MiningEstimate
+    {
+        int halite_extracted; // Halite net extrait apres simulation
+        int mine_turns;       // Nombre de tours passes a miner
+    };
+
     struct Blackboard
     {
 
@@ -138,10 +145,14 @@ namespace bot
         /// Calcule la heatmap de halite
         void compute_heatmap(const hlt::GameMap &game_map);
 
-        /// Trouve le meilleur target d'exploration pour un ship (retourne (-1,-1) si aucun)
+        /// Simule l'extraction tour par tour sur une cell (retourne halite extrait + nb tours)
+        MiningEstimate estimate_mining(int cell_halite, int ship_cargo, bool inspired) const;
+
+        /// Trouve le best target explore via HPT = halite_net / (aller + mine + retour)
         hlt::Position find_best_explore_target(const hlt::GameMap &game_map,
                                                const hlt::Position &ship_pos,
                                                hlt::EntityId ship_id,
+                                               int ship_cargo,
                                                const std::vector<hlt::Position> &drop_positions) const;
     };
 
