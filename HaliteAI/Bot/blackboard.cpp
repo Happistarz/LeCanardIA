@@ -114,6 +114,17 @@ namespace bot
                         heatmap_val = heatmap_val * 3 / 2;
                 }
 
+                // Boost temporaire pour les cells proches d'un dropoff recent (attire les ships)
+                if (recent_dropoff_pos.x >= 0 && recent_dropoff_age >= 0)
+                {
+                    int rd_dist = map_utils::toroidal_distance(candidate, recent_dropoff_pos, w, h);
+                    if (rd_dist <= constants::DROPOFF_REDIRECT_RADIUS)
+                    {
+                        int proximity_bonus = (constants::DROPOFF_REDIRECT_RADIUS - rd_dist + 1);
+                        heatmap_val = heatmap_val * (constants::DROPOFF_REDIRECT_BOOST + proximity_bonus) / constants::DROPOFF_REDIRECT_BOOST;
+                    }
+                }
+
                 // Penalite pour la distance : favoriser les cells proches pour reduire le temps de voyage
                 int travel_cost = dist * (average_halite / (hlt::constants::MOVE_COST_RATIO > 0 ? hlt::constants::MOVE_COST_RATIO : 10));
                 int net_score = heatmap_val - travel_cost;

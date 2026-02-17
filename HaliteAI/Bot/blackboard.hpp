@@ -117,6 +117,11 @@ namespace bot
         /// Ship assigne a la construction du dropoff (-1 si aucun)
         hlt::EntityId dropoff_ship_id = -1;
 
+        /// Position du dernier dropoff construit (-1,-1 si aucun)
+        hlt::Position recent_dropoff_pos{-1, -1};
+        /// Age en tours depuis la construction du dernier dropoff (0 = ce tour)
+        int recent_dropoff_age = -1;
+
         std::vector<hlt::Position> drop_positions;
 
         /// Trouve la meilleure pos pour un dropoff

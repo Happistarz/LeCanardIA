@@ -35,6 +35,12 @@ namespace bot
 
         /// Nombre max de dropoffs
         constexpr int MAX_DROPOFFS = 2;
+        /// Rayon de redirect des ships vers un nouveau dropoff
+        constexpr int DROPOFF_REDIRECT_RADIUS = 10;
+        /// Nombre de tours pendant lesquels le bonus post-dropoff est actif
+        constexpr int DROPOFF_REDIRECT_DURATION = 15;
+        /// Multiplicateur de score pour les cells proches d'un dropoff recent
+        constexpr int DROPOFF_REDIRECT_BOOST = 4;
         /// Nombre min de ships avant de planifier un dropoff
         constexpr int MIN_SHIPS_FOR_DROPOFF = 5;
         /// Ratio distance depot / distance spawn pour considerer un dropoff rentable

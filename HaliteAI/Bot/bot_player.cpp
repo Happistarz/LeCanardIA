@@ -24,6 +24,17 @@ namespace bot
         bb.total_ships_alive = static_cast<int>(me->ships.size());
         bb.drop_positions = get_drops_positions();
 
+        // Aging du bonus post-dropoff, expire apres DROPOFF_REDIRECT_DURATION tours
+        if (bb.recent_dropoff_age >= 0)
+        {
+            bb.recent_dropoff_age++;
+            if (bb.recent_dropoff_age > constants::DROPOFF_REDIRECT_DURATION)
+            {
+                bb.recent_dropoff_pos = {-1, -1};
+                bb.recent_dropoff_age = -1;
+            }
+        }
+
         update_map_stats(bb, game_map);
 
         update_game_phase(bb);
@@ -378,6 +389,13 @@ namespace bot
         commands.push_back(ship->make_dropoff());
         m_converting_ship_id = ship->id;
 
+        // Stocker la pos du nouveau dropoff pour le bonus d'attraction temporaire
+        bb.recent_dropoff_pos = target;
+        bb.recent_dropoff_age = 0;
+
+        // Forcer les ships proches a miner autour du nouveau dropoff
+        redirect_ships_to_new_dropoff(bb, target);
+
         bb.planned_dropoff_pos = { -1, -1 };
         bb.dropoff_ship_id = -1;
 
@@ -431,7 +449,74 @@ namespace bot
         }
         return best_ship;
     }
-    
+
+    // Redirige les ships proches vers la zone du nouveau dropoff pour miner autour
+    void BotPlayer::redirect_ships_to_new_dropoff(Blackboard& bb, const hlt::Position& dropoff_pos)
+    {
+        std::shared_ptr<hlt::Player> me = game.me;
+        std::unique_ptr<hlt::GameMap>& game_map = game.game_map;
+        int w = game_map->width;
+        int h = game_map->height;
+
+        hlt::log::log("Redirect: checking " + std::to_string(me->ships.size()) + " ships near dropoff (" + std::to_string(dropoff_pos.x) + "," + std::to_string(dropoff_pos.y) + ")");
+
+        for (const auto& ship_pair : me->ships)
+        {
+            const auto& ship = ship_pair.second;
+            // Skip le ship qui vient d'etre converti en dropoff
+            if (ship->id == m_converting_ship_id)
+                continue;
+
+            // Skip si trop loin du nouveau dropoff
+            int dist = map_utils::toroidal_distance(ship->position, dropoff_pos, w, h);
+            if (dist > constants::DROPOFF_REDIRECT_RADIUS)
+                continue;
+
+            // Skip si le ship est deja plein, il doit return pas redirect
+            if (ship->halite >= hlt::constants::MAX_HALITE * constants::HALITE_FILL_THRESHOLD)
+                continue;
+
+            auto fsm_it = ship_fsms.find(ship->id);
+            if (fsm_it != ship_fsms.end())
+            {
+                // Chercher la meilleure cell autour du dropoff pour ce ship
+                int best_score = -1;
+                hlt::Position best_cell = dropoff_pos;
+
+                for (int dy = -constants::HEATMAP_RADIUS; dy <= constants::HEATMAP_RADIUS; ++dy)
+                {
+                    for (int dx = -constants::HEATMAP_RADIUS; dx <= constants::HEATMAP_RADIUS; ++dx)
+                    {
+                        int md = std::abs(dx) + std::abs(dy);
+                        if (md > constants::HEATMAP_RADIUS || md == 0)
+                            continue;
+
+                        int nx = ((dropoff_pos.x + dx) % w + w) % w;
+                        int ny = ((dropoff_pos.y + dy) % h + h) % h;
+                        hlt::Position candidate(nx, ny);
+
+                        // Skip si deja target par un autre ship
+                        auto it = bb.targeted_cells.find(candidate);
+                        if (it != bb.targeted_cells.end() && it->second != ship->id)
+                            continue;
+
+                        int cell_halite = game_map->at(candidate)->halite;
+                        if (cell_halite > best_score)
+                        {
+                            best_score = cell_halite;
+                            best_cell = candidate;
+                        }
+                    }
+                }
+
+                // Assigner la target persistante vers la zone du dropoff
+                bb.persistent_targets[ship->id] = best_cell;
+                bb.targeted_cells[best_cell] = ship->id;
+                hlt::log::log("Redirect ship " + std::to_string(ship->id) + " to new dropoff zone");
+            }
+        }
+    }
+
     // _____________________________________
     
     // SPAWN

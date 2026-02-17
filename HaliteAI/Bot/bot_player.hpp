@@ -72,6 +72,8 @@ namespace bot
         // Créer un nouveau plan
         bool create_new_dropoff_plan(Blackboard&, hlt::Player&, hlt::GameMap&);
         std::shared_ptr<hlt::Ship> find_best_dropoff_ship(hlt::Player&, hlt::GameMap&, const hlt::Position&);
+        // Redirige les ships proches vers le nouveau dropoff
+        void redirect_ships_to_new_dropoff(Blackboard& bb, const hlt::Position& dropoff_pos);
 
         /// Determine si on doit spawn un nouveau ship
         bool should_spawn(const std::vector<MoveRequest> &requests,
