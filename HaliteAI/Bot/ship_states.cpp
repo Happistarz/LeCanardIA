@@ -21,19 +21,20 @@ namespace bot
                            hlt::Direction::STILL, constants::COLLECT_PRIORITY, alternatives};
     }
 
-    // Helper pour navigation avec prise en compte du blackboard
+    // Navigation helper avec blackboard (danger zones + stuck)
     static void navigate_with_blackboard(std::shared_ptr<hlt::Ship> ship,
                                          hlt::GameMap &game_map,
                                          const hlt::Position &destination,
                                          hlt::Direction &out_best_dir,
-                                         std::vector<hlt::Direction> &out_alternatives)
+                                         std::vector<hlt::Direction> &out_alternatives,
+                                         bool is_returning = false)
     {
         const Blackboard &bb = Blackboard::get_instance();
         map_utils::navigate_toward(ship, game_map, destination,
                                    bb.stuck_positions, bb.danger_zones,
-                                   out_best_dir, out_alternatives);
+                                   out_best_dir, out_alternatives, is_returning);
 
-        // Si le ship oscille, forcer une direction alternative pour casser le pattern
+        // Ship oscille -> forcer une alternative
         if (bb.is_ship_oscillating(ship->id) && !out_alternatives.empty())
         {
             // Chercher une alternative safe
@@ -62,20 +63,20 @@ namespace bot
     {
         Blackboard &bb = Blackboard::get_instance();
 
-        // Si le ship oscille, abandonner tout target persistant pour ce ship
+        // Ship oscille -> drop son target persistant
         if (bb.is_ship_oscillating(ship->id))
         {
             bb.persistent_targets.erase(ship->id);
         }
 
-        // Verif si on a deja un target persistant
+        // Target persistant existant ?
         auto pt_it = bb.persistent_targets.find(ship->id);
         if (pt_it != bb.persistent_targets.end())
         {
             hlt::Position target = pt_it->second;
             int dist = game_map.calculate_distance(ship->position, target);
 
-            // Abandonner si arrive ou zone pauvre
+            // Arrive ou zone pauvre -> drop
             if (dist == 0 || game_map.at(target)->halite < constants::TARGET_MIN_HALITE)
             {
                 bb.persistent_targets.erase(pt_it);
@@ -95,12 +96,12 @@ namespace bot
             }
         }
 
-        // Target via HPT : simule extraction + cout aller/retour pour chaque cell candidate
+        // Cherche target via HPT (halite net / temps total)
         hlt::Position target = bb.find_best_explore_target(game_map, ship->position, ship->id, ship->halite, bb.drop_positions);
 
         if (target != ship->position)
         {
-            // Assigner le target sur le blackboard pour les prochains tours
+            // Persister le target
             bb.persistent_targets[ship->id] = target;
             bb.targeted_cells[target] = ship->id;
 
@@ -159,8 +160,7 @@ namespace bot
                            best_direction, constants::EXPLORE_PRIORITY, alternatives};
     }
 
-    // COLLECT
-    // On compare le gain marginal d'extraction au rendement moyen par tour d'un trip complet
+    // COLLECT : gain marginal vs rendement moyen par tour
     MoveRequest ShipCollectState::execute(std::shared_ptr<hlt::Ship> ship,
                                           hlt::GameMap &game_map, const hlt::Position &shipyard_position)
     {
@@ -170,22 +170,22 @@ namespace bot
         bool inspired = bb.inspired_zones.find(game_map.normalize(ship->position)) != bb.inspired_zones.end();
         int extract_ratio = inspired ? hlt::constants::INSPIRED_EXTRACT_RATIO : hlt::constants::EXTRACT_RATIO;
 
-        // Combien on va extraire CE tour (avec inspiration)
+        // Extraction marginale ce tour
         int marginal_extract = cell_halite / extract_ratio;
         if (inspired)
             marginal_extract += static_cast<int>(marginal_extract * hlt::constants::INSPIRED_BONUS_MULTIPLIER);
 
-        // Rendement moyen par tour d'un trip complet (6 tours : aller, miner, retour)
+        // Rendement moyen par tour d'un trip (~6 tours)
         int avg_trip_halite = bb.average_halite > 0 ? bb.average_halite : 1;
         int est_trip_turns = 6;
         int avg_yield_per_turn = avg_trip_halite / est_trip_turns;
 
-        // Si l'extraction marginale est inferieure au rendement moyen par tour, il faut partir
+        // Marginal < rendement moyen -> partir
         bool should_leave = marginal_extract < avg_yield_per_turn;
 
         if (should_leave)
         {
-            // Cell plus rentable, navigate vers le drop
+            // Cell epuisee, retour au drop
             hlt::Direction best_dir;
             std::vector<hlt::Direction> alternatives;
             navigate_with_blackboard(ship, game_map, shipyard_position, best_dir, alternatives);
@@ -195,7 +195,7 @@ namespace bot
                                best_dir, constants::COLLECT_PRIORITY, alternatives};
         }
 
-        // Cell encore rentable, rester et scorer les alternatives pour le prochain tour
+        // Cell encore rentable, on reste
         std::vector<std::pair<int, hlt::Direction>> scored_dirs;
         for (const auto &direction : hlt::ALL_CARDINALS)
         {
@@ -221,20 +221,21 @@ namespace bot
     {
         hlt::Direction best_dir;
         std::vector<hlt::Direction> alternatives;
-        navigate_with_blackboard(ship, game_map, shipyard_position, best_dir, alternatives);
+        // Penaliser le burn en return
+        navigate_with_blackboard(ship, game_map, shipyard_position, best_dir, alternatives, true);
 
         hlt::Position desired = game_map.normalize(ship->position.directional_offset(best_dir));
         return MoveRequest{ship->id, ship->position, desired,
                            best_dir, constants::RETURN_PRIORITY, alternatives};
     }
 
-    // FLEE, fuit vers le drop le plus proche en maximisant la distance aux menaces
+    // FLEE : maximise distance aux menaces tout en rentrant
     MoveRequest ShipFleeState::execute(std::shared_ptr<hlt::Ship> ship,
                                        hlt::GameMap &game_map, const hlt::Position &shipyard_position)
     {
         const Blackboard &bb = Blackboard::get_instance();
 
-        // Collecter les menaces proches
+        // Menaces proches
         std::vector<hlt::Position> threats;
         for (const auto &enemy : bb.enemy_ships)
         {
@@ -246,7 +247,7 @@ namespace bot
             }
         }
 
-        // Si plus de menace, naviguer normalement vers le drop
+        // Plus de menace, retour normal
         if (threats.empty())
         {
             hlt::Direction best_dir;
@@ -257,7 +258,7 @@ namespace bot
                                best_dir, constants::FLEE_PRIORITY, alternatives};
         }
 
-        // Scorer chaque direction (4 cardinales + STILL)
+        // Scorer chaque direction
         struct ScoredMove
         {
             hlt::Direction dir;
@@ -295,7 +296,7 @@ namespace bot
             moves.push_back({dir, safety, to_drop, cell_cost});
         }
 
-        // Trier : maximiser safety, puis minimiser distance au drop
+        // Tri : safety desc, dist au drop asc
         std::sort(moves.begin(), moves.end(),
                   [](const ScoredMove &a, const ScoredMove &b)
                   {
@@ -315,7 +316,7 @@ namespace bot
                            best_dir, constants::FLEE_PRIORITY, alternatives};
     }
 
-    // HUNT, ship leger qui chasse un enemy plein
+    // HUNT : chasser un ennemi charge
     MoveRequest ShipHuntState::execute(std::shared_ptr<hlt::Ship> ship,
                                        hlt::GameMap &game_map, const hlt::Position &shipyard_position)
     {
@@ -323,13 +324,13 @@ namespace bot
 
         hlt::Position target = bb.find_hunt_target(game_map, ship->position, ship->id);
 
-        // Pas de target valide -> return to explore
+        // Pas de target -> fallback explore
         if (target.x < 0)
         {
             return ShipExploreState::execute(ship, game_map, shipyard_position);
         }
 
-        // Marquer la cell cible comme targeted pour éviter les conflits de chasse
+        // Danger zones sans la target
         std::set<hlt::Position> hunt_dangers = bb.danger_zones;
         hunt_dangers.erase(target);
 
@@ -350,7 +351,8 @@ namespace bot
     {
         hlt::Direction best_dir;
         std::vector<hlt::Direction> alternatives;
-        navigate_with_blackboard(ship, game_map, shipyard_position, best_dir, alternatives);
+        // Penaliser le burn en return
+        navigate_with_blackboard(ship, game_map, shipyard_position, best_dir, alternatives, true);
 
         hlt::Position desired = game_map.normalize(ship->position.directional_offset(best_dir));
         return MoveRequest{ship->id, ship->position, desired,

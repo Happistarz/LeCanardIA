@@ -31,7 +31,8 @@ namespace bot
                              const std::set<hlt::Position> &stuck_positions,
                              const std::set<hlt::Position> &danger_zones,
                              hlt::Direction &out_best_dir,
-                             std::vector<hlt::Direction> &out_alternatives);
+                             std::vector<hlt::Direction> &out_alternatives,
+                             bool is_returning = false);
 
     } // namespace map_utils
 } // namespace bot

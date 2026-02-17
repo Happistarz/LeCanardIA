@@ -24,7 +24,12 @@ namespace bot
         bb.total_ships_alive = static_cast<int>(me->ships.size());
         bb.drop_positions = get_drops_positions();
 
-        // Aging du bonus post-dropoff, expire apres DROPOFF_REDIRECT_DURATION tours
+        // Positions allies pour dominance dropoff
+        bb.allied_positions.clear();
+        for (const auto &ship_pair : me->ships)
+            bb.allied_positions.push_back(ship_pair.second->position);
+
+        // Aging du bonus post-dropoff
         if (bb.recent_dropoff_age >= 0)
         {
             bb.recent_dropoff_age++;
@@ -116,10 +121,11 @@ namespace bot
                 hlt::Position norm_pos = game_map->normalize(ship_pair.second->position);
                 bb.danger_zones.insert(norm_pos);
                 bb.enemy_ships.push_back({ ship_pair.first, norm_pos, ship_pair.second->halite });
-                // Marquer les 4 adjacents si l'ennemi peut bouger (assez de halite)
+                // Adjacents dangereux si l'ennemi est leger et mobile
                 int cell_h = game_map->at(norm_pos)->halite;
                 int move_cost = cell_h / hlt::constants::MOVE_COST_RATIO;
-                if (ship_pair.second->halite >= move_cost) {
+                int avg_ship_halite = bb.total_ships_alive > 0 ? (bb.average_halite * 3) : 500;
+                if (ship_pair.second->halite >= move_cost && ship_pair.second->halite < avg_ship_halite) {
                     for (const auto& adj : norm_pos.get_surrounding_cardinals())
                         bb.danger_zones.insert(game_map->normalize(adj));
                 }

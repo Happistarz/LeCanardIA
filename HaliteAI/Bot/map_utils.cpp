@@ -11,7 +11,8 @@ namespace bot
                              const std::set<hlt::Position> &stuck_positions,
                              const std::set<hlt::Position> &danger_zones,
                              hlt::Direction &out_best_dir,
-                             std::vector<hlt::Direction> &out_alternatives)
+                             std::vector<hlt::Direction> &out_alternatives,
+                             bool is_returning)
         {
             // Deja a destination : rester sur place
             if (ship->position == destination)
@@ -35,12 +36,15 @@ namespace bot
                 bool is_optimal;
             };
 
+            // x4 move_cost en return pour eviter le burn
+            int cost_weight = is_returning ? 4 : 1;
+
             std::vector<ScoredDir> scored;
             for (const auto &dir : hlt::ALL_CARDINALS)
             {
                 hlt::Position target = game_map.normalize(ship->position.directional_offset(dir));
                 int dist = game_map.calculate_distance(target, destination);
-                int cost = game_map.at(target)->halite / hlt::constants::MOVE_COST_RATIO;
+                int cost = (game_map.at(target)->halite / hlt::constants::MOVE_COST_RATIO) * cost_weight;
                 bool stuck = stuck_positions.find(target) != stuck_positions.end();
                 bool dangerous = danger_zones.find(target) != danger_zones.end();
                 bool optimal = false;
@@ -57,7 +61,7 @@ namespace bot
                 scored.push_back({dir, dist, cost, stuck, dangerous, optimal});
             }
 
-            // Trier les directions : stuck > dangerous > optimal > distance > move cost
+            // Tri : stuck > danger > optimal > dist > cost
             std::sort(scored.begin(), scored.end(),
                       [](const ScoredDir &a, const ScoredDir &b)
                       {

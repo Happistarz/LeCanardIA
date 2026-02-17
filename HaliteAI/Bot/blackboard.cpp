@@ -4,6 +4,7 @@
 #include "hlt/constants.hpp"
 
 #include <cstdlib>
+#include <cmath>
 
 namespace bot
 {
@@ -42,39 +43,61 @@ namespace bot
         should_spawn = false;
     }
 
+    // Heatmap par blur exponentiel separable
     void Blackboard::compute_heatmap(const hlt::GameMap &game_map)
     {
         int w = game_map.width;
         int h = game_map.height;
+        double alpha = 0.4;
+
+        std::vector<std::vector<double>> temp(h, std::vector<double>(w, 0.0));
         halite_heatmap.assign(h, std::vector<int>(w, 0));
 
+        // Pass horizontal avec wrap-around
         for (int y = 0; y < h; ++y)
         {
-            for (int x = 0; x < w; ++x)
+            double acc = 0.0;
+            for (int x = 0; x < w * 2; ++x)
             {
-                int score = 0;
-                for (int dy = -constants::HEATMAP_RADIUS; dy <= constants::HEATMAP_RADIUS; ++dy)
-                {
-                    for (int dx = -constants::HEATMAP_RADIUS; dx <= constants::HEATMAP_RADIUS; ++dx)
-                    {
-                        int dist = std::abs(dx) + std::abs(dy);
-                        if (dist > constants::HEATMAP_RADIUS)
-                            continue;
-
-                        int nx = ((x + dx) % w + w) % w;
-                        int ny = ((y + dy) % h + h) % h;
-
-                        // Ponderation : les cells proches comptent plus
-                        int weight = constants::HEATMAP_RADIUS + 1 - dist;
-                        score += game_map.cells[ny][nx].halite * weight;
-                    }
-                }
-                halite_heatmap[y][x] = score;
+                int rx = x % w;
+                acc = acc * (1.0 - alpha) + game_map.cells[y][rx].halite * alpha;
+                temp[y][rx] += acc;
+            }
+            acc = 0.0;
+            for (int x = w * 2 - 1; x >= 0; --x)
+            {
+                int rx = x % w;
+                acc = acc * (1.0 - alpha) + game_map.cells[y][rx].halite * alpha;
+                temp[y][rx] += acc;
             }
         }
+
+        // Pass vertical avec wrap-around
+        std::vector<std::vector<double>> result(h, std::vector<double>(w, 0.0));
+        for (int x = 0; x < w; ++x)
+        {
+            double acc = 0.0;
+            for (int y = 0; y < h * 2; ++y)
+            {
+                int ry = y % h;
+                acc = acc * (1.0 - alpha) + temp[ry][x] * alpha;
+                result[ry][x] += acc;
+            }
+            acc = 0.0;
+            for (int y = h * 2 - 1; y >= 0; --y)
+            {
+                int ry = y % h;
+                acc = acc * (1.0 - alpha) + temp[ry][x] * alpha;
+                result[ry][x] += acc;
+            }
+        }
+
+        for (int y = 0; y < h; ++y)
+            for (int x = 0; x < w; ++x)
+                halite_heatmap[y][x] = static_cast<int>(result[y][x]);
     }
 
-    // Simule extraction tour par tour, stoppe quand le marginal < avg/8 ou cargo full
+    // Simule l'extraction tour par tour, arrete si marginal < avg/8
     MiningEstimate Blackboard::estimate_mining(int cell_halite, int ship_cargo, bool inspired) const
     {
         int extracted = 0;
@@ -144,10 +167,9 @@ namespace bot
                 int cell_halite = game_map.cells[ny][nx].halite;
                 bool inspired = inspired_zones.find(candidate) != inspired_zones.end();
 
-                // Simulation extraction sur la cell candidate
                 MiningEstimate est = estimate_mining(cell_halite, ship_cargo, inspired);
 
-                // Distance retour = min dist vers un drop depuis la candidate
+                // Dist retour = min vers un drop
                 int return_dist = dist;
                 for (const auto& drop : drop_positions)
                 {
@@ -155,7 +177,7 @@ namespace bot
                     if (dd < return_dist) return_dist = dd;
                 }
 
-                // HPT = (extracted - burn_aller - burn_retour) * 100 / temps_total
+                // HPT net = (extracted - burns) / temps_total
                 int travel_burn = dist * avg_move_burn;
                 int return_burn = return_dist * avg_move_burn;
                 int net_halite = est.halite_extracted - travel_burn - return_burn;
@@ -167,7 +189,7 @@ namespace bot
 
                 int effective_score = (net_halite * 100) / total_time;
 
-                // Tiebreaker leger via heatmap pour favoriser les zones denses
+                // Tiebreaker heatmap pour les zones denses
                 effective_score += halite_heatmap[ny][nx] / 100;
 
                 if (recent_dropoff_pos.x >= 0 && recent_dropoff_age >= 0)
@@ -191,6 +213,7 @@ namespace bot
         return best_pos;
     }
 
+    // Meilleur spot dropoff : halite reel + dominance allies + bonus ships proches
     hlt::Position Blackboard::find_best_dropoff_position(
         const hlt::GameMap &game_map,
         const std::vector<hlt::Position> &existing_depots,
@@ -200,6 +223,7 @@ namespace bot
         int h = game_map.height;
         int best_score = -1;
         hlt::Position best_pos(-1, -1);
+        int dropoff_radius = 7;
 
         for (int y = 0; y < h; ++y)
         {
@@ -207,7 +231,6 @@ namespace bot
             {
                 hlt::Position candidate(x, y);
 
-                // Verif la distance minimale a tous les drops existants
                 bool too_close = false;
                 for (const auto &depot : existing_depots)
                 {
@@ -221,7 +244,42 @@ namespace bot
                 if (too_close)
                     continue;
 
-                int score = halite_heatmap[y][x];
+                // Somme halite reel dans le rayon
+                int real_halite = 0;
+                for (int dy2 = -dropoff_radius; dy2 <= dropoff_radius; ++dy2)
+                {
+                    for (int dx2 = -dropoff_radius; dx2 <= dropoff_radius; ++dx2)
+                    {
+                        int md = std::abs(dx2) + std::abs(dy2);
+                        if (md > dropoff_radius) continue;
+                        int nx = ((x + dx2) % w + w) % w;
+                        int ny = ((y + dy2) % h + h) % h;
+                        real_halite += game_map.cells[ny][nx].halite;
+                    }
+                }
+
+                // Dominance : allies vs ennemis
+                int allies_nearby = 0;
+                int enemies_nearby = 0;
+                for (const auto &apos : allied_positions)
+                {
+                    if (map_utils::toroidal_distance(candidate, apos, w, h) <= dropoff_radius)
+                        allies_nearby++;
+                }
+                for (const auto &enemy : enemy_ships)
+                {
+                    if (map_utils::toroidal_distance(candidate, enemy.position, w, h) <= dropoff_radius)
+                        enemies_nearby++;
+                }
+
+                // Zone dominee par ennemis, skip
+                if (enemies_nearby > allies_nearby + 1)
+                    continue;
+
+                // Bonus allies proches
+                int ally_bonus = allies_nearby * 500;
+
+                int score = real_halite + ally_bonus;
                 if (score > best_score)
                 {
                     best_score = score;
@@ -242,7 +300,7 @@ namespace bot
         if (history.size() > 4)
             history.pop_front();
 
-        // Detection du pattern A -> B -> A -> B
+        // Detecte oscillation A -> B -> A -> B
         if (history.size() == 4)
         {
             if (history[0] == history[2] && history[1] == history[3] && !(history[0] == history[1]))
@@ -267,7 +325,7 @@ namespace bot
         int radius = hlt::constants::INSPIRATION_RADIUS;
         int needed = hlt::constants::INSPIRATION_SHIP_COUNT;
 
-        // Pour chaque case de la map, compter les ennemis dans le rayon
+        // Compter ennemis dans le rayon d'inspiration par cell
         for (int y = 0; y < map_height; ++y)
         {
             for (int x = 0; x < map_width; ++x)
@@ -303,7 +361,7 @@ namespace bot
                                 ? constants::HUNT_RADIUS_LATE
                                 : constants::HUNT_RADIUS;
 
-        // Verif si le target actuel est encore valide
+        // Target actuel encore valide ?
         auto ht_it = hunt_targets.find(ship_id);
         if (ht_it != hunt_targets.end())
         {
@@ -320,7 +378,7 @@ namespace bot
             hunt_targets.erase(ht_it);
         }
 
-        // Chercher une nouvelle target
+        // Nouvelle target de chasse
         int best_score = -1;
         hlt::Position best_pos(-1, -1);
         hlt::EntityId best_enemy_id = -1;
@@ -334,7 +392,7 @@ namespace bot
             if (dist > search_radius || dist == 0)
                 continue;
 
-            // Compter les defenders autour de la target
+            // Defenders autour de la target
             int defender_count = 0;
             for (const auto &other : enemy_ships)
             {
@@ -348,8 +406,6 @@ namespace bot
                 }
             }
 
-            // Score = halite de la target - distance * 100 - defenders * 300
-            // 100 -> penalise les targets lointaines, 300 -> penalise les targets bien defendues
             int score = enemy.halite - dist * 100 - defender_count * 300;
             if (score > best_score)
             {

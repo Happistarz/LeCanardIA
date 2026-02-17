@@ -31,11 +31,11 @@ namespace bot
         int halite;
     };
 
-    /// Resultat d'une simulation d'extraction sur une cell
+    /// Resultat simulation extraction sur une cell
     struct MiningEstimate
     {
-        int halite_extracted; // Halite net extrait apres simulation
-        int mine_turns;       // Nombre de tours passes a miner
+        int halite_extracted; // Halite net extrait
+        int mine_turns;       // Tours de mining
     };
 
     struct Blackboard
@@ -65,40 +65,40 @@ namespace bot
 
         // ANTI-OSCILLATION
 
-        /// Historique des 4 dernieres positions de chaque ship
+        /// Historique des 4 dernieres positions par ship
         std::map<hlt::EntityId, std::deque<hlt::Position>> position_history;
 
-        /// Ships actuellement en oscillation
+        /// Ships en oscillation
         std::set<hlt::EntityId> oscillating_ships;
 
-        /// Update l'historique et detecte les oscillations
+        /// Update historique + detecte oscillations
         void update_position_history(hlt::EntityId ship_id, const hlt::Position &pos);
 
-        /// Retourne true si ce ship oscille
+        /// True si le ship oscille
         bool is_ship_oscillating(hlt::EntityId ship_id) const;
 
         // INSPIRATION
 
-        /// Cells ou un ship serait inspire (>=2 ennemis dans INSPIRATION_RADIUS)
+        /// Cells inspirees (>=2 ennemis dans INSPIRATION_RADIUS)
         std::set<hlt::Position> inspired_zones;
 
-        /// Calcule les zones d'inspiration a partir des positions ennemies
+        /// Calcule les inspired_zones a partir des ennemis
         void compute_inspired_zones(int map_width, int map_height);
 
         // COMBAT
 
-        /// Tous les ships ennemis ce tour
+        /// Tous les ships ennemis du tour
         std::vector<EnemyShipInfo> enemy_ships;
 
-        /// Cibles de chasse persistantes : my_ship_id → target_enemy_id
+        /// Cibles de chasse : my_ship → enemy_id
         std::map<hlt::EntityId, hlt::EntityId> hunt_targets;
 
-        /// Trouve le meilleur target d'un ship pour la chasse (retourne (-1,-1) si aucun)
+        /// Best target de chasse (-1,-1 si rien)
         hlt::Position find_hunt_target(const hlt::GameMap &game_map,
                                        const hlt::Position &ship_pos,
                                        hlt::EntityId ship_id);
 
-        /// Verif si un ship ennemi menacant est a portee de flee
+        /// Menace ennemi a portee de flee ?
         bool has_nearby_threat(const hlt::GameMap &game_map,
                                const hlt::Position &ship_pos,
                                int ship_halite) const;
@@ -119,19 +119,22 @@ namespace bot
 
         // DROPOFF
 
-        /// Position planifiée pour le prochain dropoff (-1,-1 si aucun)
+        /// Pos planifiee pour le prochain dropoff
         hlt::Position planned_dropoff_pos{-1, -1};
-        /// Ship assigne a la construction du dropoff (-1 si aucun)
+        /// Ship assigne au dropoff
         hlt::EntityId dropoff_ship_id = -1;
 
-        /// Position du dernier dropoff construit (-1,-1 si aucun)
+        /// Pos du dernier dropoff construit
         hlt::Position recent_dropoff_pos{-1, -1};
-        /// Age en tours depuis la construction du dernier dropoff (0 = ce tour)
+        /// Age en tours depuis le dernier dropoff
         int recent_dropoff_age = -1;
 
         std::vector<hlt::Position> drop_positions;
 
-        /// Trouve la meilleure pos pour un dropoff
+        /// Positions allies
+        std::vector<hlt::Position> allied_positions;
+
+        /// Best pos pour un nouveau dropoff
         hlt::Position find_best_dropoff_position(
             const hlt::GameMap &game_map,
             const std::vector<hlt::Position> &existing_depots,
@@ -142,13 +145,13 @@ namespace bot
         /// Targets persistants
         std::map<hlt::EntityId, hlt::Position> persistent_targets;
 
-        /// Calcule la heatmap de halite
+        /// Calcule la heatmap
         void compute_heatmap(const hlt::GameMap &game_map);
 
-        /// Simule l'extraction tour par tour sur une cell (retourne halite extrait + nb tours)
+        /// Simule extraction tour par tour
         MiningEstimate estimate_mining(int cell_halite, int ship_cargo, bool inspired) const;
 
-        /// Trouve le best target explore via HPT = halite_net / (aller + mine + retour)
+        /// Best target explore via HPT = net / (aller + mine + retour)
         hlt::Position find_best_explore_target(const hlt::GameMap &game_map,
                                                const hlt::Position &ship_pos,
                                                hlt::EntityId ship_id,
